@@ -4,7 +4,6 @@ import KotlinKanji
 import GryphonLib
 import FairCore
 
-
 final class SkiffTests: XCTestCase {
     static let kotlinContext = Result { try KotlinContext() }
 
@@ -35,7 +34,7 @@ final class SkiffTests: XCTestCase {
     func testTranslateFunction() throws {
         let swift = """
         func getMessage() -> String {
-            return "Hello from Gryphon!"
+            return "Hello Skiff!"
         }
 
         print(getMessage())
@@ -43,7 +42,7 @@ final class SkiffTests: XCTestCase {
 
         let kotlin = """
         internal fun getMessage(): String {
-            return "Hello from Gryphon!"
+            return "Hello Skiff!"
         }
 
         println(getMessage())
@@ -194,9 +193,51 @@ final class SkiffTests: XCTestCase {
             thing.x + thing.y
             """
         }
-
     }
 
+    func testGenerateCompose() throws {
+        try check(swift: 0, kotlin: 0) {
+            class ComposeHarness {
+                struct Message : Hashable, Codable {
+                    let author, body: String
+                }
+
+                //@Composable
+                func MessageCard(msg: Message) {
+                    Text(text: msg.author)
+                    Text(text: msg.body)
+                }
+
+                // no-op compose stubs
+                func Text(text: String) -> Void { }
+            }
+
+            return 0
+        } expect: {
+        """
+        internal open class ComposeHarness {
+            data class Message(
+                val author: String,
+                val body: String
+            )
+
+            //@Composable
+            open fun MessageCard(msg: Message) {
+                Text(text = msg.author)
+                Text(text = msg.body)
+            }
+
+            // no-op compose stubs
+            open fun Text(text: String) {
+            }
+        }
+
+        0
+        """
+        }
+    }
+
+    /// Parse the source file for the given Swift code, translate it into Kotlin, interpret it in the embedded ``KotlinContext``, and compare the result to the Swift result.
     @discardableResult func check<T : Equatable>(swift: T, kotlin: JSum, file: StaticString = #file, line: UInt = #line, block: () throws -> T, expect: () -> String?) throws -> JSum {
         let (k, j) = try skiff(file: file, line: line)
         let result = try block()
@@ -235,18 +276,6 @@ final class SkiffTests: XCTestCase {
         }
 
         let code = translation.kotlinCode
-        // translated code is embedded in a `main` function by default – trim it out
-
-//        if trimMain {
-//            let tok = "fun main(args: Array<String>) {"
-//            if code.contains(tok) {
-//                code = code.replacingOccurrences(of: tok, with: "")
-//                    .trimmingTrailingCharacters(in: .whitespacesAndNewlines)
-//                    .trimmingTrailingCharacters(in: CharacterSet(charactersIn: "}"))
-//                    .trimmingTrailingCharacters(in: .whitespacesAndNewlines)
-//            }
-//        }
-
         return code
     }
 
