@@ -163,7 +163,7 @@ final class SkiffTests: XCTestCase {
 
     /// This is a known and unavoidable difference in the behavior of Swift and Kotlin: data classes are passed by reference
     func testMutableStructsBehaveDifferently() throws {
-        try check(swift: 12, kotlin: 106) {
+        try check(swift: 12, kotlin: 13) {
             struct Thing {
                 var x, y: Int
             }
@@ -171,7 +171,8 @@ final class SkiffTests: XCTestCase {
             thing.x = 5
             thing.y = 7
             var t2 = thing
-            t2.x = 99
+            // Swift structs are value types but Kotlin data classes are references, so this will work differently
+            t2.x += 1
             return thing.x + thing.y
         } expect: {
             """
@@ -187,7 +188,8 @@ final class SkiffTests: XCTestCase {
 
             internal var t2: Thing = thing
 
-            t2.x = 99
+            // Swift structs are value types but Kotlin data classes are references, so this will work differently
+            t2.x += 1
 
             thing.x + thing.y
             """
