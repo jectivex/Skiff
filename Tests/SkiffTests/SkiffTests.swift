@@ -195,6 +195,102 @@ final class SkiffTests: XCTestCase {
         }
     }
 
+    func testFunctionBuilder() throws {
+        @resultBuilder
+        struct StringCharacterCounterBuilder {
+            static func buildBlock(_ strings: String...) -> [Int] {
+                return strings.map { $0.count }
+            }
+        }
+
+        class CharacterCounter {
+            let counterArray: [Int]
+
+            init(@StringCharacterCounterBuilder _ content: () -> [Int]) {
+                counterArray = content()
+            }
+
+            func showCounts() {
+                counterArray.forEach { print($0) }
+            }
+        }
+
+        let characterCounts = CharacterCounter {
+            "Andy"
+            "Ibanez"
+            "Collects Pullip"
+        }
+
+        XCTAssertEqual([4, 6, 15], characterCounts.counterArray)
+    }
+
+    func testGenerateFunctionBuilder() throws {
+        // does not compile, so we do not verify:
+
+        // failed: caught error: "ERROR Data class must have at least one primary constructor parameter (ScriptingHost54e041a4_Line_6.kts:1:50)
+
+        try check(verify: false, swift: [4, 6, 15], kotlin: [4, 6, 15]) {
+            @resultBuilder
+            struct StringCharacterCounterBuilder {
+                static func buildBlock(_ strings: String...) -> [Int] {
+                    return strings.map { $0.count }
+                }
+            }
+
+            class CharacterCounter {
+                let counterArray: [Int]
+
+                init(@StringCharacterCounterBuilder _ content: () -> [Int]) {
+                    counterArray = content()
+                }
+
+                func showCounts() {
+                    counterArray.forEach { print($0) }
+                }
+            }
+
+            let characterCounts = CharacterCounter {
+                "Andy"
+                "Ibanez"
+                "Collects Pullip"
+            }
+
+            return characterCounts.counterArray
+        } expect: {
+        """
+        internal data class StringCharacterCounterBuilder(
+
+        ) {
+            companion object {
+                fun buildBlock(vararg strings: String): List<Int> = strings.map({ it.length })
+            }
+        }
+
+        internal open class CharacterCounter {
+            val counterArray: List<Int>
+
+            constructor(content: () -> List<Int>) {
+                counterArray = content()
+            }
+
+            open fun showCounts() {
+                counterArray.forEach({ println(it) })
+            }
+        }
+
+        internal val characterCounts: CharacterCounter = CharacterCounter {
+                "Andy"
+
+                "Ibanez"
+
+                "Collects Pullip"
+            }
+
+        characterCounts.counterArray
+        """
+        }
+    }
+
     func testGenerateCompose() throws {
         try check(swift: 0, kotlin: 0) {
             class ComposeHarness {
@@ -238,17 +334,26 @@ final class SkiffTests: XCTestCase {
     }
 
     /// Parse the source file for the given Swift code, translate it into Kotlin, interpret it in the embedded ``KotlinContext``, and compare the result to the Swift result.
-    @discardableResult func check<T : Equatable>(swift: T, kotlin: JSum, file: StaticString = #file, line: UInt = #line, block: () throws -> T, expect: () -> String?) throws -> JSum {
-        let (k, j) = try skiff(file: file, line: line)
-        let result = try block()
+    @discardableResult func check<T : Equatable>(verify: Bool = true, swift: T, kotlin: JSum, file: StaticString = #file, line: UInt = #line, block: () throws -> T, expect: () -> String?) throws -> JSum? {
+        let (k, jf) = try skiff2(file: file, line: line)
         if let expected = expect(), expected.trimmed().isEmpty == false {
             XCTAssertEqual(expected.trimmed(), k.trimmed(), "Expected source disagreed", file: file, line: line)
+            if expected.trimmed() != k.trimmed() {
+                return .nul
+            }
         } else {
             dbg("missing Kotlin expectation for:", k)
         }
-        XCTAssertEqual(result, swift, "Swift values disagreed", file: file, line: line)
-        XCTAssertEqual(j, kotlin, "Kotlin values disagreed", file: file, line: line)
-        return j
+
+        if verify {
+            let j = try jf()
+            XCTAssertEqual(j, kotlin, "Kotlin values disagreed", file: file, line: line)
+            let result = try block()
+            XCTAssertEqual(result, swift, "Swift values disagreed", file: file, line: line)
+            return j
+        } else {
+            return nil
+        }
     }
 
     func compare(swift: String, kotlin: String, file: StaticString = #file, line: UInt = #line) throws {
@@ -279,7 +384,13 @@ final class SkiffTests: XCTestCase {
         return code
     }
 
+    /// Takes the block of code in the source file after the calling line and before the next token (e.g., "} expect: {"), and converts it to Kotlin, executes it in an embedded JVM, and returns the serialized result as a ``JSum``.
     func skiff(token: String = "} expect: {", file: StaticString = #file, line: UInt = #line) throws -> (source: String, result: JSum) {
+        let result = try skiff2(token: token, file: file, line: line)
+        return (result.source, try result.eval())
+    }
+
+    func skiff2(token: String = "} expect: {", file: StaticString = #file, line: UInt = #line) throws -> (source: String, eval: () throws -> (JSum)) {
         let code = try String(contentsOf: URL(fileURLWithPath: file.description))
         let lines = code.split(separator: "\n", omittingEmptySubsequences: false)
         let initial = Array(lines[.init(line)...])
@@ -306,7 +417,7 @@ final class SkiffTests: XCTestCase {
         if let match = match {
             XCTAssertEqual(match.trimmingCharacters(in: .whitespacesAndNewlines), kotlin.trimmingCharacters(in: .whitespacesAndNewlines), "expected transpiled Kotlin mismatch", file: file, line: line)
         }
-        return (kotlin, try ctx.eval(.val(.str(kotlin))).jsum())
+        return (kotlin, { try self.ctx.eval(.val(.str(kotlin))).jsum() })
     }
 
     /// Run a few simple simple Kotlin snippets and check their output
