@@ -6,22 +6,43 @@ import FairCore
 
 final class SkiffTests: XCTestCase {
     func testBasic() throws {
-        XCTAssertEqual(6, try skiff {
+        try check(swift: 6, kotlin: 6) {
             1 + 2 + 3
-        })
-        
-        XCTAssertEqual("xyz", try skiff {
-            "x" + "y" + "z"
-        })
+        } // check: 1 + 2 + 3
+
+        try check(swift: "XYZ", kotlin: "XYZ") {
+            "X" + "Y" + "Z"
+        } // check: "X" + "Y" + "Z"
+
+
+        try check(swift: 15, kotlin: 15) {
+            [1, 5, 9].reduce(0, { x, y in x + y })
+        } // check: listOf(1, 5, 9).fold(0, { x, y -> x + y })
 
     }
 
-    func skiff<T>(file: StaticString = #file, line: Int = #line, block: () -> T) throws -> JSum {
+    @discardableResult func check<T : Equatable>(swift: T, kotlin: JSum, file: StaticString = #file, line: UInt = #line, block: () throws -> T) throws -> JSum {
+        let k = try skiff(file: file, line: line)
+        let result = try block()
+        XCTAssertEqual(result, swift, "Swift values disagreed", file: file, line: line)
+        XCTAssertEqual(k, kotlin, "Kotlin values disagreed", file: file, line: line)
+        return k
+    }
+
+    func skiff(token: String = "} // check", file: StaticString = #file, line: UInt = #line) throws -> JSum {
         let code = try String(contentsOf: URL(fileURLWithPath: file.description))
         let lines = code.split(separator: "\n", omittingEmptySubsequences: false)
-        let initial = Array(lines[line...])
-        guard let brace = initial.firstIndex(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines) == "})" }) else {
+        let initial = Array(lines[.init(line)...])
+        guard let brace = initial.firstIndex(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(token) }) else {
             throw CocoaError(.formatting)
+        }
+
+        let checkString = initial[brace].trimmingCharacters(in: .whitespacesAndNewlines)
+        let match: String?
+        if checkString.hasPrefix(token + ": ") {
+            match = checkString.dropFirst(token.count + 2).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            match = nil
         }
 
         let parts = initial[..<brace]
@@ -30,6 +51,10 @@ final class SkiffTests: XCTestCase {
 
         let kotlin = try translate(swift: swift, trimMain: true)
 
+        dbg("kotlin:", kotlin)
+        if let match = match {
+            XCTAssertEqual(match, kotlin, "expected transpiled Kotlin mismatch", file: file, line: line)
+        }
         let ctx = try KotlinContext()
         return try ctx.eval(.val(.str(kotlin))).jsum()
     }
