@@ -14,10 +14,35 @@ final class SkiffTests: XCTestCase {
             "X" + "Y" + "Z"
         } // check: "X" + "Y" + "Z"
 
-
         try check(swift: 15, kotlin: 15) {
             [1, 5, 9].reduce(0, { x, y in x + y })
         } // check: listOf(1, 5, 9).fold(0, { x, y -> x + y })
+
+        try check(swift: "dog", kotlin: "dog") {
+            enum Pet : String {
+                case cat, dog
+            }
+            return Pet.dog.rawValue.description
+        } // check
+
+        try check(swift: "meow", kotlin: "meow") {
+            enum Pet : String {
+                case cat, dog
+            }
+            switch Pet.cat {
+            case .dog: return "woof"
+            case .cat: return "meow"
+            }
+        } // check
+
+
+//        try check(swift: 7, kotlin: 7) {
+//            struct Thing {
+//                let x, y: Int
+//            }
+//            let thing = Thing(x: 2, y: 5)
+//            return thing.x + thing.y
+//        } // check
 
     }
 
@@ -40,20 +65,21 @@ final class SkiffTests: XCTestCase {
         let checkString = initial[brace].trimmingCharacters(in: .whitespacesAndNewlines)
         let match: String?
         if checkString.hasPrefix(token + ": ") {
-            match = checkString.dropFirst(token.count + 2).trimmingCharacters(in: .whitespacesAndNewlines)
+            match = String(checkString.dropFirst(token.count + 2))
         } else {
             match = nil
         }
 
         let parts = initial[..<brace]
+        var swift = parts.joined(separator: "\n")
+        swift = swift.replacingOccurrences(of: "return ", with: "") // force remove returns, which aren't valid in top-level Kotlin
 
-        let swift = parts.joined(separator: "\n")
+        let kotlin = try translate(swift: swift, trimMain: true) // + (hasReturn ? "()" : "")
 
-        let kotlin = try translate(swift: swift, trimMain: true)
+        dbg("kotlin:", kotlin.trimmingCharacters(in: .whitespacesAndNewlines))
 
-        dbg("kotlin:", kotlin)
         if let match = match {
-            XCTAssertEqual(match, kotlin, "expected transpiled Kotlin mismatch", file: file, line: line)
+            XCTAssertEqual(match.trimmingCharacters(in: .whitespacesAndNewlines), kotlin.trimmingCharacters(in: .whitespacesAndNewlines), "expected transpiled Kotlin mismatch", file: file, line: line)
         }
         let ctx = try KotlinContext()
         return try ctx.eval(.val(.str(kotlin))).jsum()
@@ -133,16 +159,14 @@ final class SkiffTests: XCTestCase {
         }
 
         var code = translation.kotlinCode
+        // translated code is embedded in a `main` function by default – trim it out
         if trimMain {
-            code = (code as NSString)
-                .replacingOccurrences(of: "fun main(args: Array<String>)", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if code.hasSuffix("}") && code.hasPrefix("{") {
-                code = String(code.dropFirst().dropLast())
+            let tok = "fun main(args: Array<String>) {"
+            if code.contains(tok) {
+                code = code.replacingOccurrences(of: tok, with: "")
+                    .trimmingTrailingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingTrailingCharacters(in: CharacterSet(charactersIn: "}"))
             }
-            code = code
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-
         }
 
         return code
