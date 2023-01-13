@@ -12,7 +12,7 @@ let package = Package(
         .library(name: "Skiff", targets: ["Skiff"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/jectivex/Kanji.git", from: "0.2.1"),
+        .package(url: "https://github.com/jectivex/Kanji.git", from: "1.0.0"),
         .package(url: "https://github.com/jectivex/Gryphon.git", branch: "main"),
         //.package(url: "https://github.com/jectivex/Gryphon.git", from: "0.2.0"), // 'gryphon' >= 0.2.0 cannot be used because no versions of 'gryphon' match the requirement 0.2.1..<1.0.0 and package 'gryphon' is required using a stable-version but 'gryphon' depends on an unstable-version package 'swift-syntax'.
     ],

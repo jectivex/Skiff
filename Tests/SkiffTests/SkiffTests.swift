@@ -305,6 +305,28 @@ final class SkiffTests: XCTestCase {
         }
     }
 
+//    struct InterView2 : MultiView, View {
+//    }
+//
+//    struct InterView : MultiView, View {
+//        // kortlin: slip
+//        var body: some View {
+//            VStack {
+//                Text("Hello World")
+//                String("XXX")
+//            }
+//        }
+//
+//        //
+//        var compose: some ComposeView {
+//            VStack {
+//                Text("Hello World")
+//                String("XXX")
+//            }
+//        }
+//    }
+
+
     func testGenerateCompose() throws {
         try check(swift: 0, kotlin: 0) {
             class ComposeHarness {
