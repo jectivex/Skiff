@@ -60,27 +60,39 @@ final class SkiffTests: XCTestCase {
     func testBasic() throws {
         try check(swift: 6, kotlin: 6) {
             1+2+3
-        } expect: {
+        } verify: {
             "1 + 2 + 3"
         }
 
         try check(swift: 6, kotlin: 6) {
             1.0+2.0+3.0
-        } expect: {
+        } verify: {
             "1.0 + 2.0 + 3.0"
         }
 
         try check(swift: "XYZ", kotlin: "XYZ") {
             "X" + "Y" + "Z"
-        } expect: {
+        } verify: {
             #""X" + "Y" + "Z""#
         }
     }
 
     func testListConversions() throws {
+        try check(swift: [10], kotlin: [10]) {
+            (1...10).filter({ $0 > 9 })
+        } verify: {
+            "(1..10).filter({ it > 9 })"
+        }
+
+        try check(swift: [2, 3, 4], kotlin: [2, 3, 4]) {
+            [1, 2, 3].map({ $0 + 1 })
+        } verify: {
+            "listOf(1, 2, 3).map({ it + 1 })"
+        }
+
         try check(swift: 15, kotlin: 15) {
             [1, 5, 9].reduce(0, { x, y in x + y })
-        } expect: {
+        } verify: {
             "listOf(1, 5, 9).fold(0, { x, y -> x + y })"
         }
     }
@@ -91,7 +103,7 @@ final class SkiffTests: XCTestCase {
                 case cat, dog
             }
             return Pet.dog.rawValue.description
-        } expect: {
+        } verify: {
             """
             internal enum class Pet(val rawValue: String) {
                 CAT(rawValue = "cat"),
@@ -116,7 +128,7 @@ final class SkiffTests: XCTestCase {
             case .dog: return "woof" // nice doggy
             case .cat: return "meow" // cute kitty
             }
-        } expect: {
+        } verify: {
             """
             internal enum class Pet(val rawValue: String) {
                 CAT(rawValue = "cat"),
@@ -146,7 +158,7 @@ final class SkiffTests: XCTestCase {
             }
             let thing = Thing(x: 2, y: 5)
             return thing.x + thing.y
-        } expect: {
+        } verify: {
             """
             internal data class Thing(
                 var x: Int,
@@ -173,7 +185,7 @@ final class SkiffTests: XCTestCase {
             // Swift structs are value types but Kotlin data classes are references, so this will work differently
             t2.x += 1
             return thing.x + thing.y
-        } expect: {
+        } verify: {
             """
             internal data class Thing(
                 var x: Int,
@@ -229,8 +241,8 @@ final class SkiffTests: XCTestCase {
 
         // failed: caught error: "ERROR Data class must have at least one primary constructor parameter (ScriptingHost54e041a4_Line_6.kts:1:50)
 
-        try check(verify: false, swift: [4, 6, 15], kotlin: [4, 6, 15]) {
-            @resultBuilder
+        try check(compile: false, swift: [4, 6, 15], kotlin: [4, 6, 15]) {
+            @resultBuilder // FIXME: Gryphon does not grok @resultBuilder
             struct StringCharacterCounterBuilder {
                 static func buildBlock(_ strings: String...) -> [Int] {
                     return strings.map { $0.count }
@@ -250,13 +262,13 @@ final class SkiffTests: XCTestCase {
             }
 
             let characterCounts = CharacterCounter {
-                "Andy"
-                "Ibanez"
+                "Andy" // this outputs uncompilable Kotlin
+                "Ibanez" // (no commas between elements)
                 "Collects Pullip"
             }
 
             return characterCounts.counterArray
-        } expect: {
+        } verify: {
         """
         internal data class StringCharacterCounterBuilder(
 
@@ -281,8 +293,10 @@ final class SkiffTests: XCTestCase {
         internal val characterCounts: CharacterCounter = CharacterCounter {
                 "Andy"
 
+                // this outputs uncompilable Kotlin
                 "Ibanez"
 
+                // (no commas between elements)
                 "Collects Pullip"
             }
 
@@ -309,7 +323,7 @@ final class SkiffTests: XCTestCase {
             }
 
             return 0
-        } expect: {
+        } verify: {
         """
         internal open class ComposeHarness {
             data class Message(
@@ -334,9 +348,9 @@ final class SkiffTests: XCTestCase {
     }
 
     /// Parse the source file for the given Swift code, translate it into Kotlin, interpret it in the embedded ``KotlinContext``, and compare the result to the Swift result.
-    @discardableResult func check<T : Equatable>(verify: Bool = true, swift: T, kotlin: JSum, file: StaticString = #file, line: UInt = #line, block: () throws -> T, expect: () -> String?) throws -> JSum? {
+    @discardableResult func check<T : Equatable>(compile: Bool = true, swift: T, kotlin: JSum, file: StaticString = #file, line: UInt = #line, block: () throws -> T, verify: () -> String?) throws -> JSum? {
         let (k, jf) = try skiff2(file: file, line: line)
-        if let expected = expect(), expected.trimmed().isEmpty == false {
+        if let expected = verify(), expected.trimmed().isEmpty == false {
             XCTAssertEqual(expected.trimmed(), k.trimmed(), "Expected source disagreed", file: file, line: line)
             if expected.trimmed() != k.trimmed() {
                 return .nul
@@ -345,7 +359,7 @@ final class SkiffTests: XCTestCase {
             dbg("missing Kotlin expectation for:", k)
         }
 
-        if verify {
+        if compile {
             let j = try jf()
             XCTAssertEqual(j, kotlin, "Kotlin values disagreed", file: file, line: line)
             let result = try block()
@@ -384,13 +398,13 @@ final class SkiffTests: XCTestCase {
         return code
     }
 
-    /// Takes the block of code in the source file after the calling line and before the next token (e.g., "} expect: {"), and converts it to Kotlin, executes it in an embedded JVM, and returns the serialized result as a ``JSum``.
-    func skiff(token: String = "} expect: {", file: StaticString = #file, line: UInt = #line) throws -> (source: String, result: JSum) {
+    /// Takes the block of code in the source file after the calling line and before the next token (default, `"} verify: {"`), and converts it to Kotlin, executes it in an embedded JVM, and returns the serialized result as a ``JSum``.
+    func skiff(token: String = "} verify: {", file: StaticString = #file, line: UInt = #line) throws -> (source: String, result: JSum) {
         let result = try skiff2(token: token, file: file, line: line)
         return (result.source, try result.eval())
     }
 
-    func skiff2(token: String = "} expect: {", file: StaticString = #file, line: UInt = #line) throws -> (source: String, eval: () throws -> (JSum)) {
+    func skiff2(token: String = "} verify: {", file: StaticString = #file, line: UInt = #line) throws -> (source: String, eval: () throws -> (JSum)) {
         let code = try String(contentsOf: URL(fileURLWithPath: file.description))
         let lines = code.split(separator: "\n", omittingEmptySubsequences: false)
         let initial = Array(lines[.init(line)...])
