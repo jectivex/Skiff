@@ -20,6 +20,12 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Check Env
+        run: |
+          which swift
+          echo LINUX_SOURCEKIT_LIB_PATH: ${LINUX_SOURCEKIT_LIB_PATH}
+          ls -la ${LINUX_SOURCEKIT_LIB_PATH}
+
       - name: Test (Debug)
         run: swift test --configuration debug
 

@@ -2,7 +2,7 @@ import XCTest
 @testable import Skiff
 import KotlinKanji
 import GryphonLib
-import FairCore
+import JSum
 
 final class SkiffTests: XCTestCase {
     static let kotlinContext = Result { try KotlinContext() }
@@ -378,7 +378,7 @@ final class SkiffTests: XCTestCase {
                 return .nul
             }
         } else {
-            dbg("missing Kotlin expectation for:", k)
+            print("### missing Kotlin expectation for:###\n", k)
         }
 
         if compile {
@@ -466,5 +466,11 @@ final class SkiffTests: XCTestCase {
         XCTAssertEqual(3, try ctx.eval("{ val x = 2; var y = 1; x + y; }()").jsum())
         //XCTAssertEqual(3, try ctx.eval("return 1+2").jsum())
         //XCTAssertEqual(3, try ctx.eval("{ val x = 1+2; return x }()").jsum())
+    }
+}
+
+private extension String {
+    func trimmed() -> String {
+        trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
