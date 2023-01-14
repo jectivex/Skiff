@@ -174,7 +174,11 @@ final class SkiffTests: XCTestCase {
     }
 
     func testTranslationComments() throws {
-        try check(swift: .init(NSTemporaryDirectory()), kotlin: .str(NSTemporaryDirectory())) {
+        var tmp = NSTemporaryDirectory()
+        if !tmp.hasSuffix("/") {
+            tmp += "/" // java.io.tmpdir seems to always add a trailing slash
+        }
+        try check(swift: .init(tmp), kotlin: .str(tmp)) {
             // gryphon ignore
             try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))
             // gryphon insert: java.lang.System.getProperty("java.io.tmpdir")
@@ -188,13 +192,30 @@ final class SkiffTests: XCTestCase {
     }
 
     func testTranslationAutoport() throws {
-        try check(autoport: true, swift: .init(NSTemporaryDirectory()), kotlin: .str(NSTemporaryDirectory())) {
+        let tmp = NSTemporaryDirectory()
+
+        try check(autoport: true, swift: .init(tmp), kotlin: .str(tmp)) {
             try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))
         } verify: {
             """
             java.lang.System.getProperty(("java.io.tmpdir"))
             """
         }
+
+        // error: error: SourceKit failed to get an expression's type
+//        try check(autoport: true, swift: java$lang$String(tmp + tmp), kotlin: .str(tmp + tmp)) {
+//            let a = try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))
+//            let b = try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))
+//            return try a?.concat(b)
+//        } verify: {
+//            """
+//            internal val a: java.lang.String? = java.lang.System.getProperty(("java.io.tmpdir"))
+//            internal val b: java.lang.String? = java.lang.System.getProperty(("java.io.tmpdir"))
+//
+//            a?.concat(b)
+//            """
+//        }
+
     }
 
     /// This is a known and unavoidable difference in the behavior of Swift and Kotlin: data classes are passed by reference
@@ -456,9 +477,12 @@ final class SkiffTests: XCTestCase {
         //dbg("kotlin:", kotlin.trimmingCharacters(in: .whitespacesAndNewlines))
 
         if autoport {
+            // ERROR Type mismatch: inferred type is kotlin.String! but java.lang.String? was expected (ScriptingHost54e041a4_Line_1.kts:1:37)
+            kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "(") // fix unnecessary constructor
+            // kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "kotlin.String(") // fix unnecessary constructor
+
             // e.g., convert java$lang$String to java.lang.String
             // TODO: make less fragile!
-            kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "(") // fix unnecessary constructor
             kotlin = kotlin.replacingOccurrences(of: "$", with: ".")
         }
 
