@@ -175,10 +175,12 @@ final class SkiffTests: XCTestCase {
 
     func testTranslationComments() throws {
         var tmp = NSTemporaryDirectory()
+        #if os(Linux)
         if !tmp.hasSuffix("/") {
-            tmp += "/" // java.io.tmpdir seems to always add a trailing slash
+            tmp = tmp + "/"
         }
-        
+        #endif
+
         try check(swift: .init(tmp), kotlin: .str(tmp)) {
             // gryphon ignore
             try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))
@@ -194,9 +196,11 @@ final class SkiffTests: XCTestCase {
 
     func testTranslationAutoport() throws {
         var tmp = NSTemporaryDirectory()
+        #if os(Linux)
         if !tmp.hasSuffix("/") {
-            tmp += "/" // java.io.tmpdir seems to always add a trailing slash
+            tmp = tmp + "/"
         }
+        #endif
 
         try check(autoport: true, swift: .init(tmp), kotlin: .str(tmp)) {
             try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))
