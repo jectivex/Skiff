@@ -1,5 +1,5 @@
 public struct Skiff {
-    public private(set) var text = "Hello, World!"
+    public private(set) var text = "Hello, Skiff!"
 
     public init() {
     }

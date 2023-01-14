@@ -1,6 +1,7 @@
 import XCTest
 @testable import Skiff
 import KotlinKanji
+import JavaLib
 import GryphonLib
 import JSum
 
@@ -172,6 +173,30 @@ final class SkiffTests: XCTestCase {
         }
     }
 
+    func testTranslationComments() throws {
+        try check(swift: .init(NSTemporaryDirectory()), kotlin: .str(NSTemporaryDirectory())) {
+            // gryphon ignore
+            try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))
+            // gryphon insert: java.lang.System.getProperty("java.io.tmpdir")
+
+            // gryphon ignore: NSTemporaryDirectory() // this works too…
+        } verify: {
+            """
+            java.lang.System.getProperty("java.io.tmpdir")
+            """
+        }
+    }
+
+    func testTranslationAutoport() throws {
+        try check(autoport: true, swift: .init(NSTemporaryDirectory()), kotlin: .str(NSTemporaryDirectory())) {
+            try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))
+        } verify: {
+            """
+            java.lang.System.getProperty(("java.io.tmpdir"))
+            """
+        }
+    }
+
     /// This is a known and unavoidable difference in the behavior of Swift and Kotlin: data classes are passed by reference
     func testMutableStructsBehaveDifferently() throws {
         try check(swift: 12, kotlin: 13) {
@@ -305,28 +330,6 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-//    struct InterView2 : MultiView, View {
-//    }
-//
-//    struct InterView : MultiView, View {
-//        // kortlin: slip
-//        var body: some View {
-//            VStack {
-//                Text("Hello World")
-//                String("XXX")
-//            }
-//        }
-//
-//        //
-//        var compose: some ComposeView {
-//            VStack {
-//                Text("Hello World")
-//                String("XXX")
-//            }
-//        }
-//    }
-
-
     func testGenerateCompose() throws {
         try check(swift: 0, kotlin: 0) {
             class ComposeHarness {
@@ -370,15 +373,15 @@ final class SkiffTests: XCTestCase {
     }
 
     /// Parse the source file for the given Swift code, translate it into Kotlin, interpret it in the embedded ``KotlinContext``, and compare the result to the Swift result.
-    @discardableResult func check<T : Equatable>(compile: Bool = true, swift: T, kotlin: JSum, file: StaticString = #file, line: UInt = #line, block: () throws -> T, verify: () -> String?) throws -> JSum? {
-        let (k, jf) = try skiff2(file: file, line: line)
+    @discardableResult func check<T : Equatable>(compile: Bool = true, autoport: Bool = false, removeReturn: Bool = true, swift: T, kotlin: JSum, file: StaticString = #file, line: UInt = #line, block: () throws -> T, verify: () -> String?) throws -> JSum? {
+        let (k, jf) = try skiff2(autoport: autoport, removeReturn: removeReturn, file: file, line: line)
         if let expected = verify(), expected.trimmed().isEmpty == false {
             XCTAssertEqual(expected.trimmed(), k.trimmed(), "Expected source disagreed", file: file, line: line)
             if expected.trimmed() != k.trimmed() {
                 return .nul
             }
         } else {
-            print("### missing Kotlin expectation for:###\n", k)
+            print("### fill in Kotlin expectation test case:###\n", k)
         }
 
         if compile {
@@ -421,12 +424,12 @@ final class SkiffTests: XCTestCase {
     }
 
     /// Takes the block of code in the source file after the calling line and before the next token (default, `"} verify: {"`), and converts it to Kotlin, executes it in an embedded JVM, and returns the serialized result as a ``JSum``.
-    func skiff(token: String = "} verify: {", file: StaticString = #file, line: UInt = #line) throws -> (source: String, result: JSum) {
-        let result = try skiff2(token: token, file: file, line: line)
+    func skiff(token: String = "} verify: {", autoport: Bool, removeReturn: Bool, file: StaticString = #file, line: UInt = #line) throws -> (source: String, result: JSum) {
+        let result = try skiff2(token: token, autoport: autoport, removeReturn: removeReturn, file: file, line: line)
         return (result.source, try result.eval())
     }
 
-    func skiff2(token: String = "} verify: {", file: StaticString = #file, line: UInt = #line) throws -> (source: String, eval: () throws -> (JSum)) {
+    func skiff2(token: String = "} verify: {", autoport: Bool, removeReturn: Bool, file: StaticString = #file, line: UInt = #line) throws -> (source: String, eval: () throws -> (JSum)) {
         let code = try String(contentsOf: URL(fileURLWithPath: file.description))
         let lines = code.split(separator: "\n", omittingEmptySubsequences: false)
         let initial = Array(lines[.init(line)...])
@@ -444,11 +447,21 @@ final class SkiffTests: XCTestCase {
 
         let parts = initial[..<brace]
         var swift = parts.joined(separator: "\n")
-        swift = swift.replacingOccurrences(of: "return ", with: "") // force remove returns, which aren't valid in top-level Kotlin
+        if removeReturn {
+            swift = swift.replacingOccurrences(of: "return ", with: "") // force remove returns, which aren't valid in top-level Kotlin
+        }
 
-        let kotlin = try translate(swift: swift) // + (hasReturn ? "()" : "")
+        var kotlin = try translate(swift: swift) // + (hasReturn ? "()" : "")
 
         //dbg("kotlin:", kotlin.trimmingCharacters(in: .whitespacesAndNewlines))
+
+        if autoport {
+            // e.g., convert java$lang$String to java.lang.String
+            // TODO: make less fragile!
+            kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "(") // fix unnecessary constructor
+            kotlin = kotlin.replacingOccurrences(of: "$", with: ".")
+        }
+
 
         if let match = match {
             XCTAssertEqual(match.trimmingCharacters(in: .whitespacesAndNewlines), kotlin.trimmingCharacters(in: .whitespacesAndNewlines), "expected transpiled Kotlin mismatch", file: file, line: line)
