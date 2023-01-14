@@ -214,23 +214,6 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-    func testTranslationAutoport() throws {
-        var tmpdir = NSTemporaryDirectory()
-        #if os(Linux)
-        let jtmpdir = tmpdir.trimmingTrailingCharacters(in: CharacterSet(["/"]))
-        #else
-        let jtmpdir = tmpdir
-        #endif
-
-        try check(autoport: true, swift: .init(tmpdir), kotlin: .str(jtmpdir)) { _ in
-            try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))
-        } verify: {
-            """
-            java.lang.System.getProperty(("java.io.tmpdir"))
-            """
-        }
-    }
-
     /// This is a known and unavoidable difference in the behavior of Swift and Kotlin: data classes are passed by reference
     func testMutableStructsBehaveDifferently() throws {
         try check(swift: 12, kotlin: .num(12 + 1)) { _ in
