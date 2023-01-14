@@ -183,7 +183,7 @@ final class SkiffTests: XCTestCase {
     func testTranslationComments() throws {
         var tmpdir = NSTemporaryDirectory()
         #if os(Linux)
-        let jtmpdir = tmpdir + "/"
+        let jtmpdir = tmpdir.trimmingTrailingCharacters(in: CharacterSet(["/"]))
         #else
         let jtmpdir = tmpdir
         #endif
@@ -217,7 +217,7 @@ final class SkiffTests: XCTestCase {
     func testTranslationAutoport() throws {
         var tmpdir = NSTemporaryDirectory()
         #if os(Linux)
-        let jtmpdir = tmpdir + "/"
+        let jtmpdir = tmpdir.trimmingTrailingCharacters(in: CharacterSet(["/"]))
         #else
         let jtmpdir = tmpdir
         #endif
@@ -411,7 +411,7 @@ final class SkiffTests: XCTestCase {
     func testCrossPlatformTmpDir() throws {
         let tmpdir = NSTemporaryDirectory()
         #if os(Linux)
-        let jtmpdir = tmpdir + "/"
+        let jtmpdir = tmpdir.trimmingTrailingCharacters(in: CharacterSet(["/"]))
         #else
         let jtmpdir = tmpdir
         #endif
