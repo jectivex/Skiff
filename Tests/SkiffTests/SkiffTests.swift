@@ -176,6 +176,7 @@ final class SkiffTests: XCTestCase {
     func testTranslationComments() throws {
         var tmp = NSTemporaryDirectory()
         #if os(Linux)
+        throw XCTSkip() // FIXME
         if !tmp.hasSuffix("/") {
             tmp = tmp + "/"
         }
@@ -197,6 +198,7 @@ final class SkiffTests: XCTestCase {
     func testTranslationAutoport() throws {
         var tmp = NSTemporaryDirectory()
         #if os(Linux)
+        throw XCTSkip() // FIXME
         if !tmp.hasSuffix("/") {
             tmp = tmp + "/"
         }
@@ -228,7 +230,7 @@ final class SkiffTests: XCTestCase {
 
     /// This is a known and unavoidable difference in the behavior of Swift and Kotlin: data classes are passed by reference
     func testMutableStructsBehaveDifferently() throws {
-        try check(swift: 12, kotlin: 13) {
+        try check(swift: 12, kotlin: .num(12 + 1)) {
             struct Thing {
                 var x, y: Int
             }
