@@ -59,19 +59,19 @@ final class SkiffTests: XCTestCase {
     }
 
     func testBasic() throws {
-        try check(swift: 6, kotlin: 6) { jvm in
+        try check(swift: 6, kotlin: 6) { _ in
             1+2+3
         } verify: {
             "1 + 2 + 3"
         }
 
-        try check(swift: 6, kotlin: 6) { jvm in
+        try check(swift: 6, kotlin: 6) { _ in
             1.0+2.0+3.0
         } verify: {
             "1.0 + 2.0 + 3.0"
         }
 
-        try check(swift: "XYZ", kotlin: "XYZ") { jvm in
+        try check(swift: "XYZ", kotlin: "XYZ") { _ in
             "X" + "Y" + "Z"
         } verify: {
             #""X" + "Y" + "Z""#
@@ -79,27 +79,34 @@ final class SkiffTests: XCTestCase {
     }
 
     func testListConversions() throws {
-        try check(swift: [10], kotlin: [10]) { jvm in
+        try check(swift: [10], kotlin: [10]) { _ in
             (1...10).filter({ $0 > 9 })
         } verify: {
             "(1..10).filter({ it > 9 })"
         }
 
-        try check(swift: [2, 3, 4], kotlin: [2, 3, 4]) { jvm in
+        try check(swift: [2, 3, 4], kotlin: [2, 3, 4]) { _ in
             [1, 2, 3].map({ $0 + 1 })
         } verify: {
             "listOf(1, 2, 3).map({ it + 1 })"
         }
 
-        try check(swift: 15, kotlin: 15) { jvm in
+        try check(swift: 15, kotlin: 15) { _ in
             [1, 5, 9].reduce(0, { x, y in x + y })
         } verify: {
             "listOf(1, 5, 9).fold(0, { x, y -> x + y })"
         }
+
+        // demonstration that Gryphone mis-translates anonymous closure parameters beyond $0
+        try check(compile: false, swift: 15, kotlin: 15) { _ in
+            [1, 5, 9].reduce(0, { $0 + $1 })
+        } verify: {
+            "listOf(1, 5, 9).fold(0, { it + $1 })"
+        }
     }
 
     func testEnumToEnum() throws {
-        try check(swift: "dog", kotlin: "dog") { jvm in
+        try check(swift: "dog", kotlin: "dog") { _ in
             enum Pet : String {
                 case cat, dog
             }
@@ -119,7 +126,7 @@ final class SkiffTests: XCTestCase {
             """
         }
 
-        try check(swift: "meow", kotlin: "meow") { jvm in
+        try check(swift: "meow", kotlin: "meow") { _ in
             enum Pet : String {
                 case cat, dog
             }
@@ -153,7 +160,7 @@ final class SkiffTests: XCTestCase {
     }
 
     func testStructToDataClass() throws {
-        try check(swift: 7, kotlin: 7) { jvm in
+        try check(swift: 7, kotlin: 7) { _ in
             struct Thing {
                 var x, y: Int
             }
@@ -174,15 +181,14 @@ final class SkiffTests: XCTestCase {
     }
 
     func testTranslationComments() throws {
-        var tmp = NSTemporaryDirectory()
+        var tmpdir = NSTemporaryDirectory()
         #if os(Linux)
-        throw XCTSkip() // FIXME
-        if !tmp.hasSuffix("/") {
-            tmp = tmp + "/"
-        }
+        let jtmpdir = tmpdir + "/"
+        #else
+        let jtmpdir = tmpdir
         #endif
 
-        try check(autoport: true, swift: String?.some(tmp), java: String?.some(tmp), kotlin: .str(tmp)) { jvm in
+        try check(autoport: true, swift: String?.some(tmpdir), java: String?.some(jtmpdir), kotlin: .str(jtmpdir)) { jvm in
             func tmpdir() throws -> String? {
                 if jvm {
                     return try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))?.toSwiftString()
@@ -209,15 +215,14 @@ final class SkiffTests: XCTestCase {
     }
 
     func testTranslationAutoport() throws {
-        var tmp = NSTemporaryDirectory()
+        var tmpdir = NSTemporaryDirectory()
         #if os(Linux)
-        throw XCTSkip() // FIXME
-        if !tmp.hasSuffix("/") {
-            tmp = tmp + "/"
-        }
+        let jtmpdir = tmpdir + "/"
+        #else
+        let jtmpdir = tmpdir
         #endif
 
-        try check(autoport: true, swift: .init(tmp), kotlin: .str(tmp)) { jvm in
+        try check(autoport: true, swift: .init(tmpdir), kotlin: .str(jtmpdir)) { _ in
             try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))
         } verify: {
             """
@@ -228,7 +233,7 @@ final class SkiffTests: XCTestCase {
 
     /// This is a known and unavoidable difference in the behavior of Swift and Kotlin: data classes are passed by reference
     func testMutableStructsBehaveDifferently() throws {
-        try check(swift: 12, kotlin: .num(12 + 1)) { jvm in
+        try check(swift: 12, kotlin: .num(12 + 1)) { _ in
             struct Thing {
                 var x, y: Int
             }
@@ -295,7 +300,7 @@ final class SkiffTests: XCTestCase {
 
         // failed: caught error: "ERROR Data class must have at least one primary constructor parameter (ScriptingHost54e041a4_Line_6.kts:1:50)
 
-        try check(compile: false, swift: [4, 6, 15], kotlin: [4, 6, 15]) { jvm in
+        try check(compile: false, swift: [4, 6, 15], kotlin: [4, 6, 15]) { _ in
             @resultBuilder // FIXME: Gryphon does not grok @resultBuilder
             struct StringCharacterCounterBuilder {
                 static func buildBlock(_ strings: String...) -> [Int] {
@@ -362,7 +367,7 @@ final class SkiffTests: XCTestCase {
     }
 
     func testGenerateCompose() throws {
-        try check(swift: 0, kotlin: 0) { jvm in
+        try check(swift: 0, kotlin: 0) { _ in
             class ComposeHarness {
                 struct Message : Hashable, Codable {
                     let author, body: String
@@ -405,17 +410,22 @@ final class SkiffTests: XCTestCase {
 
     func testCrossPlatformTmpDir() throws {
         let tmpdir = NSTemporaryDirectory()
-        try check(autoport: true, swift: tmpdir, java: tmpdir, kotlin: .str(tmpdir)) { jvm in
+        #if os(Linux)
+        let jtmpdir = tmpdir + "/"
+        #else
+        let jtmpdir = tmpdir
+        #endif
+        try check(autoport: true, swift: String?.some(tmpdir), java: jtmpdir, kotlin: .str(jtmpdir)) { jvm in
             func tmpdir() throws -> String? {
                 jvm ? try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))?.toSwiftString() : /* gryphon value: null */ NSTemporaryDirectory()
             }
 
-            return try tmpdir() ?? ""
+            return try tmpdir()
         } verify: {
         """
         fun tmpdir(): String? = if (jvm) { java.lang.System.getProperty(("java.io.tmpdir")) } else { null }
 
-        tmpdir() ?: ""
+        tmpdir()
         """
         }
     }
