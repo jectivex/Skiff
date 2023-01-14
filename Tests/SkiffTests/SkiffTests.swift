@@ -59,19 +59,19 @@ final class SkiffTests: XCTestCase {
     }
 
     func testBasic() throws {
-        try check(swift: 6, kotlin: 6) {
+        try check(swift: 6, kotlin: 6) { jvm in
             1+2+3
         } verify: {
             "1 + 2 + 3"
         }
 
-        try check(swift: 6, kotlin: 6) {
+        try check(swift: 6, kotlin: 6) { jvm in
             1.0+2.0+3.0
         } verify: {
             "1.0 + 2.0 + 3.0"
         }
 
-        try check(swift: "XYZ", kotlin: "XYZ") {
+        try check(swift: "XYZ", kotlin: "XYZ") { jvm in
             "X" + "Y" + "Z"
         } verify: {
             #""X" + "Y" + "Z""#
@@ -79,19 +79,19 @@ final class SkiffTests: XCTestCase {
     }
 
     func testListConversions() throws {
-        try check(swift: [10], kotlin: [10]) {
+        try check(swift: [10], kotlin: [10]) { jvm in
             (1...10).filter({ $0 > 9 })
         } verify: {
             "(1..10).filter({ it > 9 })"
         }
 
-        try check(swift: [2, 3, 4], kotlin: [2, 3, 4]) {
+        try check(swift: [2, 3, 4], kotlin: [2, 3, 4]) { jvm in
             [1, 2, 3].map({ $0 + 1 })
         } verify: {
             "listOf(1, 2, 3).map({ it + 1 })"
         }
 
-        try check(swift: 15, kotlin: 15) {
+        try check(swift: 15, kotlin: 15) { jvm in
             [1, 5, 9].reduce(0, { x, y in x + y })
         } verify: {
             "listOf(1, 5, 9).fold(0, { x, y -> x + y })"
@@ -99,11 +99,11 @@ final class SkiffTests: XCTestCase {
     }
 
     func testEnumToEnum() throws {
-        try check(swift: "dog", kotlin: "dog") {
+        try check(swift: "dog", kotlin: "dog") { jvm in
             enum Pet : String {
                 case cat, dog
             }
-            return /* skipreturn */ Pet.dog.rawValue.description
+            return Pet.dog.rawValue.description
         } verify: {
             """
             internal enum class Pet(val rawValue: String) {
@@ -119,15 +119,15 @@ final class SkiffTests: XCTestCase {
             """
         }
 
-        try check(swift: "meow", kotlin: "meow") {
+        try check(swift: "meow", kotlin: "meow") { jvm in
             enum Pet : String {
                 case cat, dog
             }
             var pet = Pet.dog
             pet = pet == .dog ? .cat : .dog
             switch pet {
-            case .dog: return /* skipreturn */ "woof" // nice doggy
-            case .cat: return /* skipreturn */ "meow" // cute kitty
+            case .dog: return /* noreturn */ "woof" // nice doggy
+            case .cat: return /* noreturn */ "meow" // cute kitty
             }
         } verify: {
             """
@@ -153,12 +153,12 @@ final class SkiffTests: XCTestCase {
     }
 
     func testStructToDataClass() throws {
-        try check(swift: 7, kotlin: 7) {
+        try check(swift: 7, kotlin: 7) { jvm in
             struct Thing {
                 var x, y: Int
             }
             let thing = Thing(x: 2, y: 5)
-            return /* skipreturn */ thing.x + thing.y
+            return thing.x + thing.y
         } verify: {
             """
             internal data class Thing(
@@ -182,15 +182,28 @@ final class SkiffTests: XCTestCase {
         }
         #endif
 
-        try check(swift: .init(tmp), kotlin: .str(tmp)) {
-            // gryphon ignore
-            try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))
-            // gryphon insert: java.lang.System.getProperty("java.io.tmpdir")
+        try check(autoport: true, swift: String?.some(tmp), java: String?.some(tmp), kotlin: .str(tmp)) { jvm in
+            func tmpdir() throws -> String? {
+                if jvm {
+                    return try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))?.toSwiftString()
+                } else {
+                    return /* gryphon value: null */ NSTemporaryDirectory()
+                }
+            }
 
-            // gryphon ignore: NSTemporaryDirectory() // this works too…
+            return /* noreturn */ try tmpdir()
         } verify: {
             """
-            java.lang.System.getProperty("java.io.tmpdir")
+             fun tmpdir(): String? {
+                if (jvm) {
+                    return java.lang.System.getProperty(("java.io.tmpdir"))
+                }
+                else {
+                    return null
+                }
+            }
+
+            tmpdir()
             """
         }
     }
@@ -204,7 +217,7 @@ final class SkiffTests: XCTestCase {
         }
         #endif
 
-        try check(autoport: true, swift: .init(tmp), kotlin: .str(tmp)) {
+        try check(autoport: true, swift: .init(tmp), kotlin: .str(tmp)) { jvm in
             try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))
         } verify: {
             """
@@ -215,7 +228,7 @@ final class SkiffTests: XCTestCase {
 
     /// This is a known and unavoidable difference in the behavior of Swift and Kotlin: data classes are passed by reference
     func testMutableStructsBehaveDifferently() throws {
-        try check(swift: 12, kotlin: .num(12 + 1)) {
+        try check(swift: 12, kotlin: .num(12 + 1)) { jvm in
             struct Thing {
                 var x, y: Int
             }
@@ -225,7 +238,7 @@ final class SkiffTests: XCTestCase {
             var t2 = thing
             // Swift structs are value types but Kotlin data classes are references, so this will work differently
             t2.x += 1
-            return /* skipreturn */ thing.x + thing.y
+            return thing.x + thing.y
         } verify: {
             """
             internal data class Thing(
@@ -282,7 +295,7 @@ final class SkiffTests: XCTestCase {
 
         // failed: caught error: "ERROR Data class must have at least one primary constructor parameter (ScriptingHost54e041a4_Line_6.kts:1:50)
 
-        try check(compile: false, swift: [4, 6, 15], kotlin: [4, 6, 15]) {
+        try check(compile: false, swift: [4, 6, 15], kotlin: [4, 6, 15]) { jvm in
             @resultBuilder // FIXME: Gryphon does not grok @resultBuilder
             struct StringCharacterCounterBuilder {
                 static func buildBlock(_ strings: String...) -> [Int] {
@@ -308,7 +321,7 @@ final class SkiffTests: XCTestCase {
                 "Collects Pullip"
             }
 
-            return /* skipreturn */ characterCounts.counterArray
+            return characterCounts.counterArray
         } verify: {
         """
         internal data class StringCharacterCounterBuilder(
@@ -349,7 +362,7 @@ final class SkiffTests: XCTestCase {
     }
 
     func testGenerateCompose() throws {
-        try check(swift: 0, kotlin: 0) {
+        try check(swift: 0, kotlin: 0) { jvm in
             class ComposeHarness {
                 struct Message : Hashable, Codable {
                     let author, body: String
@@ -365,7 +378,7 @@ final class SkiffTests: XCTestCase {
                 func Text(text: String) -> Void { }
             }
 
-            return /* skipreturn */ 0
+            return 0
         } verify: {
         """
         internal open class ComposeHarness {
@@ -390,25 +403,39 @@ final class SkiffTests: XCTestCase {
         }
     }
 
+    func testCrossPlatformTmpDir() throws {
+        let tmpdir = NSTemporaryDirectory()
+        try check(autoport: true, swift: tmpdir, java: tmpdir, kotlin: .str(tmpdir)) { jvm in
+            func tmpdir() throws -> String? {
+                jvm ? try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))?.toSwiftString() : /* gryphon value: null */ NSTemporaryDirectory()
+            }
+
+            return try tmpdir() ?? ""
+        } verify: {
+        """
+        fun tmpdir(): String? = if (jvm) { java.lang.System.getProperty(("java.io.tmpdir")) } else { null }
+
+        tmpdir() ?: ""
+        """
+        }
+    }
+
     func testCrossPlatformRandom() throws {
-        try check(autoport: true, swift: false, kotlin: .bol(false)) {
-            let runningInJava = { /* gryphon value: true */ false }
+        try check(autoport: true, swift: true, java: true, kotlin: .bol(true)) { jvm in
 
             func generateRandomNumber() throws -> Int64 {
-                if runningInJava() {
+                if jvm {
                     return try java$util$Random().nextLong()
                 } else {
                     return /* gryphon value: 0 */ Int64.random(in: (.min)...(.max))
                 }
             }
 
-            return /* skipreturn */ try generateRandomNumber() == generateRandomNumber()
+            return try generateRandomNumber() != generateRandomNumber()
         } verify: {
         """
-        internal val runningInJava: () -> Boolean = { true }
-
         fun generateRandomNumber(): Long {
-            if (runningInJava()) {
+            if (jvm) {
                 return java.util.Random().nextLong()
             }
             else {
@@ -416,7 +443,7 @@ final class SkiffTests: XCTestCase {
             }
         }
 
-        generateRandomNumber() == generateRandomNumber()
+        generateRandomNumber() != generateRandomNumber()
         """
         }
     }
@@ -430,15 +457,15 @@ final class SkiffTests: XCTestCase {
 
         // Must be top-level, or else: Protocol 'FileSystemPod' cannot be nested inside another declaration
         let preamble = FileSystemPodBlockStart..<FileSystemPodBlockEnd
-        try check(compile: true, autoport: true, swift: true, kotlin: .bol(true), preamble: preamble) {
-            try fileSystem.exists(at: "/etc/hosts")
+        try check(compile: true, autoport: true, swift: true, java: true, kotlin: .bol(true), preamble: preamble) { jvm in
+            try fileSystem(jvm: jvm).exists(at: "/etc/hosts")
         } verify: {
         """
         interface FileSystemPod {
             fun exists(path: String): Boolean
         }
 
-        internal val fileSystem: FileSystemPod = JavaFileSystemPod()
+        fun fileSystem(jvm: Boolean): FileSystemPod = if (jvm) { JavaFileSystemPod() } else { JavaFileSystemPod() }
 
         internal data class JavaFileSystemPod(
             private val x: Boolean = false
@@ -446,29 +473,37 @@ final class SkiffTests: XCTestCase {
             override fun exists(path: String): Boolean = java.io.File((path)).exists() == true
         }
 
-        fileSystem.exists(path = "/etc/hosts")
+        fileSystem(jvm = jvm).exists(path = "/etc/hosts")
         """
         }
 
     }
 
     /// Parse the source file for the given Swift code, translate it into Kotlin, interpret it in the embedded ``KotlinContext``, and compare the result to the Swift result.
-    @discardableResult func check<T : Equatable>(compile: Bool = true, autoport: Bool = false, swift: T, kotlin: JSum, preamble: Range<Int>? = nil, file: StaticString = #file, line: UInt = #line, block: () throws -> T, verify: () -> String?) throws -> JSum? {
+    @discardableResult func check<T : Equatable>(compile: Bool = true, autoport: Bool = false, swift: T, java: T? = nil, kotlin: JSum, preamble: Range<Int>? = nil, file: StaticString = #file, line: UInt = #line, block: (Bool) throws -> T, verify: () -> String?) throws -> JSum? {
         let (k, jf) = try transpile(autoport: autoport, preamble: preamble, file: file, line: line)
+        let k1 = (k.hasPrefix("internal val jvm: Boolean = true") ? String(k.dropFirst(32)) : k).trimmed()
         if let expected = verify(), expected.trimmed().isEmpty == false {
-            XCTAssertEqual(expected.trimmed(), k.trimmed(), "Expected source disagreed", file: file, line: line)
-            if expected.trimmed() != k.trimmed() {
+            XCTAssertEqual(expected.trimmed(), k1.trimmed(), "Expected source disagreed", file: file, line: line)
+            if expected.trimmed() != k1.trimmed() {
                 return .nul
             }
         } else {
-            print("### fill in Kotlin expectation test case:###\n", k)
+            print("### fill in Kotlin expectation test case:###\n", k1)
+        }
+
+        let result = try block(false)
+        XCTAssertEqual(result, swift, "Swift values disagreed", file: file, line: line)
+
+        // also execute the block in Java mode
+        if let java = java {
+            let result = try block(true)
+            XCTAssertEqual(result, java, "Java values disagreed", file: file, line: line)
         }
 
         if compile {
             let j = try jf()
             XCTAssertEqual(j, kotlin, "Kotlin values disagreed", file: file, line: line)
-            let result = try block()
-            XCTAssertEqual(result, swift, "Swift values disagreed", file: file, line: line)
             return j
         } else {
             return nil
@@ -525,17 +560,26 @@ final class SkiffTests: XCTestCase {
             match = nil
         }
 
-        var parts = Array(initial[..<brace])
+        var parts = ["let jvm = true"] // when running in Kotlin mode, jvm is always true
 
         // insert the preamble if we have specified it
         if let preamble = preamble {
-            parts = lines[(preamble.startIndex)..<(preamble.endIndex-1)] + parts
+            parts += lines[(preamble.startIndex)..<(preamble.endIndex-1)]
         }
 
-        var swift = parts.joined(separator: "\n")
-        swift = swift.replacingOccurrences(of: "return /* skipreturn */", with: "") // trim out returns that Kotlin forbids at the top level
+        parts += initial[..<brace]
 
-        print("swift:", swift.trimmingCharacters(in: .whitespacesAndNewlines))
+        parts = parts.map {
+            $0.replacingOccurrences(of: "return /* noreturn */", with: "") // trim out returns that Kotlin forbids at the top level
+        }
+
+        // also check for a return on the final line, which we automatically trim
+        if parts.last?.trimmed().hasPrefix("return ") == true {
+            parts[parts.endIndex-1] = String(parts[parts.endIndex-1].trimmed().dropFirst(7))
+        }
+        let swift = parts.joined(separator: "\n")
+
+        //print("swift:", swift.trimmingCharacters(in: .whitespacesAndNewlines))
 
         var kotlin = try translate(swift: swift) // + (hasReturn ? "()" : "")
 
@@ -546,6 +590,7 @@ final class SkiffTests: XCTestCase {
             // ERROR Type mismatch: inferred type is kotlin.String! but java.lang.String? was expected (ScriptingHost54e041a4_Line_1.kts:1:37)
             kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "(") // fix unnecessary constructor
             // kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "kotlin.String(") // fix unnecessary constructor
+            kotlin = kotlin.replacingOccurrences(of: "?.toSwiftString()", with: "") // remove Java string return coercions
 
             //kotlin = kotlin.replacingOccurrences(of: ".javaString", with: "") // string conversions don't need to be explicit
 
@@ -594,7 +639,10 @@ public protocol FileSystemPod {
     func exists(at path: String) throws -> Bool
 }
 
-let fileSystem: FileSystemPod = /* gryphon value: JavaFileSystemPod() */ SwiftFileSystemPod()
+/// Returns either the Java or Swift implementation of the ``FileSystemPod``
+func fileSystem(jvm: Bool) -> FileSystemPod {
+    jvm ? JavaFileSystemPod() : /* gryphon value: JavaFileSystemPod() */ SwiftFileSystemPod()
+}
 
 // gryphon ignore
 struct SwiftFileSystemPod : FileSystemPod {
