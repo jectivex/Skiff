@@ -508,21 +508,19 @@ final class SkiffTests: XCTestCase {
 
         // SkiffTests.swift:465: error: -[SkiffTests.SkiffTests testAsyncFunctionsNotTranslated] : failed: caught error: ":3:21: error: Unknown expression (failed to translate SwiftSyntax node).
 
-        return;
-
-        try check(compile: false, autoport: true, swift: true, java: true, kotlin: true) { jvm in
-            func asyncFunc(url: URL) async throws -> Data {
-                try await URLSession.shared.data(for: URLRequest(url: url)).0
-            }
-
-            return true
-        } verify: {
-        """
-        fun asyncFunc(): String = ""
-
-        true
-        """
-        }
+//        try check(compile: false, autoport: true, swift: true, java: true, kotlin: true) { jvm in
+//            func asyncFunc(url: URL) async throws -> Data {
+//                try await URLSession.shared.data(for: URLRequest(url: url)).0
+//            }
+//
+//            return true
+//        } verify: {
+//        """
+//        fun asyncFunc(): String = ""
+//
+//        true
+//        """
+//        }
 
     }
 
