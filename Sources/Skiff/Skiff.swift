@@ -18,7 +18,7 @@ public class Skiff {
     }
 
 
-    public func translate(swift: String, file: StaticString = #file, line: UInt = #line) throws -> String {
+    public func translate(swift: String, autoport: Bool = false, file: StaticString = #file, line: UInt = #line) throws -> String {
         let fileURL = URL(fileURLWithPath: UUID().uuidString, isDirectory: false, relativeTo: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)).appendingPathExtension("swift")
 
         //#warning("TODO: compile in-memory")
@@ -38,8 +38,28 @@ public class Skiff {
             throw TranslateError.noInitialTranslationResult
         }
 
-        let code = translation.kotlinCode
-        return code
+        var kotlin = translation.kotlinCode
+
+        //print("kotlin:", kotlin.trimmingCharacters(in: .whitespacesAndNewlines))
+
+
+        if autoport {
+            // ERROR Type mismatch: inferred type is kotlin.String! but java.lang.String? was expected (ScriptingHost54e041a4_Line_1.kts:1:37)
+            kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "(") // fix unnecessary constructor
+            // kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "kotlin.String(") // fix unnecessary constructor
+            kotlin = kotlin.replacingOccurrences(of: "?.toSwiftString()", with: "") // remove Java string return coercions
+
+            //kotlin = kotlin.replacingOccurrences(of: ".javaString", with: "") // string conversions don't need to be explicit
+
+            // e.g., convert java$lang$String to java.lang.String
+            // TODO: make less fragile!
+            kotlin = kotlin.replacingOccurrences(of: "$", with: ".")
+
+            // failed: caught error: "ERROR Modifier 'internal' is not applicable to 'local function' (ScriptingHost54e041a4_Line_0.kts:12:1)"
+            kotlin = kotlin.replacingOccurrences(of: "internal fun ", with: "fun ")
+        }
+        
+        return kotlin
     }
 
     /// Takes the block of code in the source file after the calling line and before the next token (default, `"} verify: {"`), and converts it to Kotlin, executes it in an embedded JVM, and returns the serialized result as a ``JSum``.
@@ -75,29 +95,7 @@ public class Skiff {
         }
         let swift = parts.joined(separator: "\n")
 
-        //print("swift:", swift.trimmingCharacters(in: .whitespacesAndNewlines))
-
-        var kotlin = try translate(swift: swift) // + (hasReturn ? "()" : "")
-
-        //print("kotlin:", kotlin.trimmingCharacters(in: .whitespacesAndNewlines))
-
-
-        if autoport {
-            // ERROR Type mismatch: inferred type is kotlin.String! but java.lang.String? was expected (ScriptingHost54e041a4_Line_1.kts:1:37)
-            kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "(") // fix unnecessary constructor
-            // kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "kotlin.String(") // fix unnecessary constructor
-            kotlin = kotlin.replacingOccurrences(of: "?.toSwiftString()", with: "") // remove Java string return coercions
-
-            //kotlin = kotlin.replacingOccurrences(of: ".javaString", with: "") // string conversions don't need to be explicit
-
-            // e.g., convert java$lang$String to java.lang.String
-            // TODO: make less fragile!
-            kotlin = kotlin.replacingOccurrences(of: "$", with: ".")
-
-            // failed: caught error: "ERROR Modifier 'internal' is not applicable to 'local function' (ScriptingHost54e041a4_Line_0.kts:12:1)"
-            kotlin = kotlin.replacingOccurrences(of: "internal fun ", with: "fun ")
-        }
-
+        let kotlin = try translate(swift: swift, autoport: autoport) // + (hasReturn ? "()" : "")
         return (kotlin, { try self.context.eval(.val(.str(kotlin))).jsum() })
     }
 }
