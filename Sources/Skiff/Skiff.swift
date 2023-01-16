@@ -44,6 +44,8 @@ public class Skiff {
 
 
         if autoport {
+            kotlin = kotlin.replacingOccurrences(of: "#if canImport(Skiff)", with: "#if GRYPHON")
+
             // ERROR Type mismatch: inferred type is kotlin.String! but java.lang.String? was expected (ScriptingHost54e041a4_Line_1.kts:1:37)
             kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "(") // fix unnecessary constructor
             // kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "kotlin.String(") // fix unnecessary constructor
