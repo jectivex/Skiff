@@ -3,10 +3,11 @@ import JSum
 import KotlinKanji
 import GryphonLib
 
-public struct Skiff {
+/// A container for a Swift-to-Kotlin translation context.
+public class Skiff {
     let context: KotlinContext
 
-    init() throws {
+    public init() throws {
         self.context = try KotlinContext()
     }
 
