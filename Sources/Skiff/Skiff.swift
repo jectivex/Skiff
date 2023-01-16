@@ -19,6 +19,12 @@ public class Skiff {
 
 
     public func translate(swift: String, autoport: Bool = false, file: StaticString = #file, line: UInt = #line) throws -> String {
+        var swift = swift
+        if autoport {
+            // error: Unsupported #if declaration; only `#if GRYPHON`, `#if !GRYPHON` and `#else` are supported (failed to translate SwiftSyntax node).
+            swift = swift.replacingOccurrences(of: "#if canImport(Skiff)", with: "#if GRYPHON")
+        }
+
         let fileURL = URL(fileURLWithPath: UUID().uuidString, isDirectory: false, relativeTo: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)).appendingPathExtension("swift")
 
         //#warning("TODO: compile in-memory")
@@ -44,7 +50,6 @@ public class Skiff {
 
 
         if autoport {
-            kotlin = kotlin.replacingOccurrences(of: "#if canImport(Skiff)", with: "#if GRYPHON")
 
             // ERROR Type mismatch: inferred type is kotlin.String! but java.lang.String? was expected (ScriptingHost54e041a4_Line_1.kts:1:37)
             kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "(") // fix unnecessary constructor
