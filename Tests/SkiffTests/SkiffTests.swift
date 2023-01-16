@@ -491,6 +491,41 @@ final class SkiffTests: XCTestCase {
         }
     }
 
+    func testAsyncFunctionsNotTranslated() throws {
+        try check(autoport: true, swift: true, java: true, kotlin: true) { jvm in
+            func asyncFunc() async throws -> String {
+                ""
+            }
+
+            return true
+        } verify: {
+        """
+        fun asyncFunc(): String = ""
+
+        true
+        """
+        }
+
+        // SkiffTests.swift:465: error: -[SkiffTests.SkiffTests testAsyncFunctionsNotTranslated] : failed: caught error: ":3:21: error: Unknown expression (failed to translate SwiftSyntax node).
+
+        return;
+
+        try check(compile: false, autoport: true, swift: true, java: true, kotlin: true) { jvm in
+            func asyncFunc(url: URL) async throws -> Data {
+                try await URLSession.shared.data(for: URLRequest(url: url)).0
+            }
+
+            return true
+        } verify: {
+        """
+        fun asyncFunc(): String = ""
+
+        true
+        """
+        }
+
+    }
+
     func compare(swift: String, kotlin: String, file: StaticString = #file, line: UInt = #line) throws {
         XCTAssertEqual(kotlin.trimmed(), try Self.skiff.get().translate(swift: swift, file: file, line: line).trimmed(), file: file, line: line)
     }
