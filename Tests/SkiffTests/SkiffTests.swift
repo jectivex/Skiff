@@ -427,6 +427,30 @@ final class SkiffTests: XCTestCase {
         generateRandomNumber() != generateRandomNumber()
         """
         }
+
+    }
+
+    func testPreprocessorRandom() throws {
+        try check(autoport: true, swift: true, java: true, kotlin: .bol(true)) { jvm in
+
+            func generateRandomNumber() throws -> Int64 {
+                #if KOTLIN
+                return java.util.Random().nextLong()
+                #else
+                return Int64.random(in: (.min)...(.max))
+                #endif
+            }
+
+            return try generateRandomNumber() != generateRandomNumber()
+        } verify: {
+        """
+         fun generateRandomNumber(): Long {
+            return java.util.Random().nextLong()
+        }
+
+        generateRandomNumber() != generateRandomNumber()
+        """
+        }
     }
 
     func testGeneratePod() throws {
@@ -541,6 +565,34 @@ final class SkiffTests: XCTestCase {
         //XCTAssertEqual(3, try ctx.eval("return 1+2").jsum())
         //XCTAssertEqual(3, try ctx.eval("{ val x = 1+2; return x }()").jsum())
     }
+
+    func testReplaceCaptures() throws {
+        do {
+            XCTAssertEqual("""
+            func getLine() -> String {
+                var line1 = ""
+                // this is some raw Kotlin
+                val line2 = someKotlin()
+                return line1 + line2
+            }
+            """, try Self.skiff.get().processKotlinBlock(code: """
+            func getLine() -> String {
+                var line1 = ""
+                #if KOTLIN
+                // this is some raw Kotlin
+                val line2 = someKotlin()
+                #else
+                // this is some raw Swift
+                let line2 = someSwift()
+                #endif
+                return line1 + line2
+            }
+            """))
+
+        }
+    }
+
+
 }
 
 

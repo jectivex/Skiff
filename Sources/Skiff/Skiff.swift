@@ -23,6 +23,9 @@ public class Skiff {
         if autoport {
             // error: Unsupported #if declaration; only `#if GRYPHON`, `#if !GRYPHON` and `#else` are supported (failed to translate SwiftSyntax node).
             swift = swift.replacingOccurrences(of: "#if canImport(Skiff)", with: "#if GRYPHON")
+
+            // also swap out #if KOTLIN blocks
+            swift = try processKotlinBlock(code: swift)
         }
 
         let fileURL = URL(fileURLWithPath: UUID().uuidString, isDirectory: false, relativeTo: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)).appendingPathExtension("swift")
@@ -50,6 +53,7 @@ public class Skiff {
 
 
         if autoport {
+            // include #if KOTLIN pre-processor blocks
 
             // ERROR Type mismatch: inferred type is kotlin.String! but java.lang.String? was expected (ScriptingHost54e041a4_Line_1.kts:1:37)
             kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "(") // fix unnecessary constructor
@@ -105,11 +109,42 @@ public class Skiff {
         let kotlin = try translate(swift: swift, autoport: autoport) // + (hasReturn ? "()" : "")
         return (kotlin, { try self.context.eval(.val(.str(kotlin))).jsum() })
     }
+
+    /// Takes code with `#if KOTLIN … #else … #endif` and returns just the Kotlin code.
+    func processKotlinBlock(code: String) throws -> String {
+        let exp = try NSRegularExpression(pattern: "\n *#if KOTLIN *\n(?<KOTLIN>.*)\n *#else *\n(?<SWIFT>.*)\n *#endif", options: [.dotMatchesLineSeparators])
+        return code.replacing(expression: exp, captureGroups: ["KOTLIN", "SWIFT"], replacing: { paramName, paramValue in
+            paramName == "KOTLIN" ? "\n" + paramValue : nil // only return the Kotlin pre-processed blocks
+        })
+    }
 }
 
 extension String {
-    func trimmed() -> String {
+    public func trimmed() -> String {
         trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// The total span of this string expressed as an NSRange
+    var span: NSRange {
+        NSRange(startIndex..<endIndex, in: self)
+    }
+
+    public func replacing(expression: NSRegularExpression, options: NSRegularExpression.MatchingOptions = [], captureGroups: [String], replacing: (_ captureGroupName: String, _ captureGroupValue: String) throws -> String?) rethrows -> String {
+        var str = self
+        for match in expression.matches(in: self, options: options, range: self.span).reversed() {
+            for valueName in captureGroups {
+                let textRange = match.range(withName: valueName)
+                if textRange.location == NSNotFound {
+                    continue
+                }
+                let existingValue = (self as NSString).substring(with: textRange)
+
+                //dbg("replacing header range:", match.range, " with bold text:", text)
+                if let newValue = try replacing(valueName, existingValue) {
+                    str = (str as NSString).replacingCharacters(in: match.range, with: newValue)
+                }
+            }
+        }
+        return str
+    }
 }
