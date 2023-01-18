@@ -111,11 +111,24 @@ public class Skiff {
     }
 
     /// Takes code with `#if KOTLIN … #else … #endif` and returns just the Kotlin code.
-    func processKotlinBlock(code: String) throws -> String {
-        let exp = try NSRegularExpression(pattern: "\n *#if KOTLIN *\n(?<KOTLIN>.*)\n *#else *\n(?<SWIFT>.*)\n *#endif", options: [.dotMatchesLineSeparators])
-        return code.replacing(expression: exp, captureGroups: ["KOTLIN", "SWIFT"], replacing: { paramName, paramValue in
-            paramName == "KOTLIN" ? "\n" + paramValue : nil // only return the Kotlin pre-processed blocks
-        })
+    func processKotlinBlock(code: String, translateToGryphon: Bool = true) throws -> String {
+        if translateToGryphon {
+            return code.replacingOccurrences(of: "#if KOTLIN", with: "#if GRYPHON")
+        }
+
+        /// handle `#if KOTLIN … #else … #endif`
+        let ifElseBlock = try NSRegularExpression(pattern: "\n *#if KOTLIN *\n(?<KOTLIN>.*)\n *#else *\n(?<SWIFT>.*)\n *#endif", options: [.dotMatchesLineSeparators])
+        /// handle `#if KOTLIN … #endif`
+        let ifBlock = try NSRegularExpression(pattern: "\n *#if KOTLIN *\n(?<KOTLIN>.*)\n *#endif", options: [.dotMatchesLineSeparators])
+
+
+        return code
+            .replacing(expression: ifElseBlock, captureGroups: ["KOTLIN", "SWIFT"], replacing: { paramName, paramValue in
+                paramName == "KOTLIN" ? "\n" + paramValue : nil
+            })
+            .replacing(expression: ifBlock, captureGroups: ["KOTLIN"], replacing: { paramName, paramValue in
+                paramName == "KOTLIN" ? "\n" + paramValue : nil
+            })
     }
 }
 

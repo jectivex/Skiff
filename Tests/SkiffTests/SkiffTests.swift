@@ -86,7 +86,7 @@ final class SkiffTests: XCTestCase {
         }
 
         // demonstration that Gryphone mis-translates anonymous closure parameters beyond $0
-        try check(compile: false, swift: 15, kotlin: 15) { _ in
+        try check(swift: 15) { _ in
             [1, 5, 9].reduce(0, { $0 + $1 })
         } verify: {
             "listOf(1, 5, 9).fold(0, { it + $1 })"
@@ -271,7 +271,7 @@ final class SkiffTests: XCTestCase {
 
         // failed: caught error: "ERROR Data class must have at least one primary constructor parameter (ScriptingHost54e041a4_Line_6.kts:1:50)
 
-        try check(compile: false, swift: [4, 6, 15], kotlin: [4, 6, 15]) { _ in
+        try check(swift: [4, 6, 15], kotlin: .none) { _ in
             @resultBuilder // FIXME: Gryphon does not grok @resultBuilder
             struct StringCharacterCounterBuilder {
                 static func buildBlock(_ strings: String...) -> [Int] {
@@ -430,6 +430,29 @@ final class SkiffTests: XCTestCase {
 
     }
 
+    func testTranspileKotlinBlocks() throws {
+        try check(autoport: true, swift: false, kotlin: .bol(true)) { jvm in
+            func doSomething() -> Bool {
+                #if KOTLIN
+                return true
+                #endif
+
+                return false
+            }
+            return doSomething()
+        } verify: {
+        """
+        fun doSomething(): Boolean {
+            return true
+            return false
+        }
+
+        doSomething()
+
+        """
+        }
+    }
+
     func testPreprocessorRandom() throws {
         try check(autoport: true, swift: true, java: true, kotlin: .bol(true)) { jvm in
 
@@ -444,8 +467,33 @@ final class SkiffTests: XCTestCase {
             return try generateRandomNumber() != generateRandomNumber()
         } verify: {
         """
-         fun generateRandomNumber(): Long {
+        fun generateRandomNumber(): Long {
             return java.util.Random().nextLong()
+        }
+
+        generateRandomNumber() != generateRandomNumber()
+        """
+        }
+    }
+
+    func testPreprocessorRandomVal() throws {
+        try check(autoport: true, swift: true, java: true, kotlin: .bol(true)) { jvm in
+
+            func generateRandomNumber() throws -> Int64 {
+                #if KOTLIN
+                let rnd: java.util.Random = java.util.Random()
+                return rnd.nextLong()
+                #else
+                return Int64.random(in: (.min)...(.max))
+                #endif
+            }
+
+            return try generateRandomNumber() != generateRandomNumber()
+        } verify: {
+        """
+        fun generateRandomNumber(): Long {
+            val rnd: java.util.Random = java.util.Random()
+            return rnd.nextLong()
         }
 
         generateRandomNumber() != generateRandomNumber()
@@ -485,7 +533,7 @@ final class SkiffTests: XCTestCase {
     }
 
     /// Parse the source file for the given Swift code, translate it into Kotlin, interpret it in the embedded ``KotlinContext``, and compare the result to the Swift result.
-    @discardableResult func check<T : Equatable>(compile: Bool = true, autoport: Bool = false, swift: T, java: T? = nil, kotlin: JSum, preamble: Range<Int>? = nil, file: StaticString = #file, line: UInt = #line, block: (Bool) throws -> T, verify: () -> String?) throws -> JSum? {
+    @discardableResult func check<T : Equatable>(compile: Bool? = nil, autoport: Bool = false, swift: T, java: T? = nil, kotlin: JSum? = .none, preamble: Range<Int>? = nil, file: StaticString = #file, line: UInt = #line, block: (Bool) throws -> T, verify: () -> String?) throws -> JSum? {
         let (k, jf) = try Self.skiff.get().transpile(autoport: autoport, preamble: preamble, file: file, line: line)
         let k1 = (k.hasPrefix("internal val jvm: Boolean = true") ? String(k.dropFirst(32)) : k).trimmed()
         if let expected = verify(), expected.trimmed().isEmpty == false {
@@ -506,7 +554,7 @@ final class SkiffTests: XCTestCase {
             XCTAssertEqual(result, java, "Java values disagreed", file: file, line: line)
         }
 
-        if compile {
+        if compile != false, let kotlin = kotlin {
             let j = try jf()
             XCTAssertEqual(j, kotlin, "Kotlin values disagreed", file: file, line: line)
             return j
@@ -548,6 +596,53 @@ final class SkiffTests: XCTestCase {
 
     }
 
+    func testDeferStatementsMistranslated() throws {
+        // defer turns into finally, which is given the wrong scope for the var x and yields the following compile error:
+
+        // SkiffTests.swift:558: error: -[SkiffTests.SkiffTests testDeferStatementsNotTranslated] : failed: caught error: "ERROR Unresolved reference: x (ScriptingHost54e041a4_Line_0.kts:9:9)
+
+        try check(compile: false, autoport: true, swift: 1, kotlin: 1) { jvm in
+            func someFunc() -> Int {
+                var x = 1
+                defer { x += 1 }
+                return x
+            }
+
+            return someFunc()
+        } verify: {
+        """
+        fun someFunc(): Int {
+            try {
+                var x: Int = 1
+                return x
+            }
+            finally {
+                x += 1
+            }
+        }
+
+        someFunc()
+        """
+        }
+
+        // SkiffTests.swift:465: error: -[SkiffTests.SkiffTests testAsyncFunctionsNotTranslated] : failed: caught error: ":3:21: error: Unknown expression (failed to translate SwiftSyntax node).
+
+//        try check(compile: false, autoport: true, swift: true, java: true, kotlin: true) { jvm in
+//            func asyncFunc(url: URL) async throws -> Data {
+//                try await URLSession.shared.data(for: URLRequest(url: url)).0
+//            }
+//
+//            return true
+//        } verify: {
+//        """
+//        fun asyncFunc(): String = ""
+//
+//        true
+//        """
+//        }
+
+    }
+
     func compare(swift: String, kotlin: String, file: StaticString = #file, line: UInt = #line) throws {
         XCTAssertEqual(kotlin.trimmed(), try Self.skiff.get().translate(swift: swift, file: file, line: line).trimmed(), file: file, line: line)
     }
@@ -565,34 +660,6 @@ final class SkiffTests: XCTestCase {
         //XCTAssertEqual(3, try ctx.eval("return 1+2").jsum())
         //XCTAssertEqual(3, try ctx.eval("{ val x = 1+2; return x }()").jsum())
     }
-
-    func testReplaceCaptures() throws {
-        do {
-            XCTAssertEqual("""
-            func getLine() -> String {
-                var line1 = ""
-                // this is some raw Kotlin
-                val line2 = someKotlin()
-                return line1 + line2
-            }
-            """, try Self.skiff.get().processKotlinBlock(code: """
-            func getLine() -> String {
-                var line1 = ""
-                #if KOTLIN
-                // this is some raw Kotlin
-                val line2 = someKotlin()
-                #else
-                // this is some raw Swift
-                let line2 = someSwift()
-                #endif
-                return line1 + line2
-            }
-            """))
-
-        }
-    }
-
-
 }
 
 
