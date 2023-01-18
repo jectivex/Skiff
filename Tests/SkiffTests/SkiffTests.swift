@@ -556,10 +556,47 @@ final class SkiffTests: XCTestCase {
         testKotlinBlock()
         """
         }
-
     }
 
-    func testGeneratePod() throws {
+    /// `Foundation.URL` does not have a single obvious analog in Java, which has both `java.io.File` and `java.net.URL`.
+    func testFoundationURLTranslation() throws {
+        try check(compile: true, autoport: true, swift: "/tmp", kotlin: .str("/tmp")) { jvm in
+
+            #if KOTLIN
+            typealias URL = java.io.File
+            #endif
+
+            func makeURL(path: String) -> URL {
+                #if KOTLIN
+                java.io.File(path)
+                #else
+                URL(fileURLWithPath: "/tmp/", isDirectory: true)
+                #endif
+            }
+
+            func getPath(url: URL) -> String {
+                #if KOTLIN
+                url.getPath()
+                #else
+                url.path
+                #endif
+            }
+
+            return getPath(url: makeURL(path: "/tmp"))
+        } verify: {
+        """
+        internal typealias URL = java.io.File
+
+        fun makeURL(path: String): URL = java.io.File(path)
+
+        fun getPath(url: URL): String = url.getPath()
+
+        getPath(makeURL("/tmp"))
+        """
+        }
+    }
+
+    func testGenerateModuleInterface() throws {
         XCTAssertTrue(try JavaFileSystemModule().exists(at: "/dev/null"))
         XCTAssertTrue(try SwiftFileSystemModule().exists(at: "/dev/null"))
 
@@ -659,6 +696,10 @@ final class SkiffTests: XCTestCase {
 
         // SkiffTests.swift:558: error: -[SkiffTests.SkiffTests testDeferStatementsNotTranslated] : failed: caught error: "ERROR Unresolved reference: x (ScriptingHost54e041a4_Line_0.kts:9:9)
 
+        // and trying to next it raises:
+
+        // error: failed to translate Gryphon AST into Kotlin: Defer statements are only supported as top-level statements in function bodies.
+
         try check(compile: false, autoport: true, swift: 1, kotlin: 1) { jvm in
             func someFunc() -> Int {
                 var x = 1
@@ -683,28 +724,11 @@ final class SkiffTests: XCTestCase {
         """
         }
 
-        // SkiffTests.swift:465: error: -[SkiffTests.SkiffTests testAsyncFunctionsNotTranslated] : failed: caught error: ":3:21: error: Unknown expression (failed to translate SwiftSyntax node).
-
-//        try check(compile: false, autoport: true, swift: true, java: true, kotlin: true) { jvm in
-//            func asyncFunc(url: URL) async throws -> Data {
-//                try await URLSession.shared.data(for: URLRequest(url: url)).0
-//            }
-//
-//            return true
-//        } verify: {
-//        """
-//        fun asyncFunc(): String = ""
-//
-//        true
-//        """
-//        }
-
     }
 
     func compare(swift: String, kotlin: String, file: StaticString = #file, line: UInt = #line) throws {
         XCTAssertEqual(kotlin.trimmed(), try Self.skiff.get().translate(swift: swift, file: file, line: line).trimmed(), file: file, line: line)
     }
-
 
     /// Run a few simple simple Kotlin snippets and check their output
     func testKotlinSnippets() throws {
