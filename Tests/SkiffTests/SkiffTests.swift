@@ -501,6 +501,64 @@ final class SkiffTests: XCTestCase {
         }
     }
 
+    func testKotlinBlock() throws {
+        try check(compile: false, autoport: true, swift: true, kotlin: .bol(false)) { jvm in
+
+            func testKotlinBlock() throws -> Bool {
+                #if KOTLIN
+                enum Pet : String {
+                    case cat, dog
+                }
+                let pet = Pet.dog
+                //pet = .cattt
+                pet = Pet.mouse // we tolerate a non-existent type and `let` reassignment
+                pet = 1 // wrong type is allowed
+                pet = z // non-existent local var permitted
+
+                pet.pet.pet = pet // this makes no sense!
+                return false
+                #else
+                return true
+                #endif
+            }
+
+            return try testKotlinBlock()
+        } verify: {
+        """
+         fun testKotlinBlock(): Boolean {
+            enum class Pet(val rawValue: String) {
+                CAT(rawValue = "cat"),
+                DOG(rawValue = "dog");
+
+                companion object {
+                    operator fun invoke(rawValue: String): Pet? = values().firstOrNull { it.rawValue == rawValue }
+                }
+            }
+
+            val pet: Pet = Pet.DOG
+
+            //pet = .cattt
+            pet = Pet.MOUSE
+
+            // we tolerate a non-existent type and `let` reassignment
+            pet = 1
+
+            // wrong type is allowed
+            pet = z
+
+            // non-existent local var permitted
+            pet.pet.pet = pet
+
+            // this makes no sense!
+            return false
+        }
+
+        testKotlinBlock()
+        """
+        }
+
+    }
+
     func testGeneratePod() throws {
         XCTAssertTrue(try JavaFileSystemModule().exists(at: "/dev/null"))
         XCTAssertTrue(try SwiftFileSystemModule().exists(at: "/dev/null"))
