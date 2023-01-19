@@ -119,7 +119,7 @@ public struct Skiff {
 
         for token in gryphonBlocks {
             /// handle `#if KOTLIN … #else … #endif`
-            let ifElseBlock = try NSRegularExpression(pattern: "\n *#if \(token) *\n(?<KOTLIN>.*)\n *#else *\n(?<SWIFT>.*)\n *#endif", options: [.dotMatchesLineSeparators])
+            let ifElseBlock = try NSRegularExpression(pattern: "\n *#if \(token) *\n(?<KOTLIN>[^#]*)\n *#else *\n(?<SWIFT>[^#]*)\n *#endif", options: [.dotMatchesLineSeparators])
             /// handle `#if KOTLIN … #endif`
 //            let ifBlock = try NSRegularExpression(pattern: "\n *#if \(token) *\n(?<KOTLIN>.*)\n *#endif", options: [.dotMatchesLineSeparators])
 
