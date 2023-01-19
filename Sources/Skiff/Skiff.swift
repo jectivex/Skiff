@@ -16,13 +16,11 @@ public struct Skiff {
 
     public func translate(swift: String, autoport: Bool = false, file: StaticString = #file, line: UInt = #line) throws -> String {
         var swift = swift
-        if autoport {
-            // error: Unsupported #if declaration; only `#if GRYPHON`, `#if !GRYPHON` and `#else` are supported (failed to translate SwiftSyntax node).
-            swift = swift.replacingOccurrences(of: "#if canImport(Skiff)", with: "#if GRYPHON")
+        // error: Unsupported #if declaration; only `#if GRYPHON`, `#if !GRYPHON` and `#else` are supported (failed to translate SwiftSyntax node).
+        swift = swift.replacingOccurrences(of: "#if canImport(Skiff)", with: "#if GRYPHON")
 
-            // also swap out #if KOTLIN blocks
-            swift = try processKotlinBlock(code: swift)
-        }
+        // also swap out #if KOTLIN blocks
+        swift = try processKotlinBlock(code: swift)
 
         //print("### swift:", swift)
 
@@ -195,7 +193,7 @@ public struct Skiff {
         let kotlinURL = sourceURL.deletingPathExtension().appendingPathExtension("kt")
 
         let source = try String(contentsOf: sourceURL)
-        var kotlin = try self.translate(swift: source, autoport: true)
+        var kotlin = try self.translate(swift: source, autoport: false)
 
         kotlin = "package \(moduleName)\n\n" + kotlin
 
