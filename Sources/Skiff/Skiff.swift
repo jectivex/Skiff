@@ -1,16 +1,9 @@
 import Foundation
 import JSum
-import KotlinKanji
 import GryphonLib
 
 /// A container for a Swift-to-Kotlin translation context.
-public class Skiff {
-    let context: KotlinContext
-
-    public init() throws {
-        self.context = try KotlinContext()
-    }
-
+public struct Skiff {
     public enum TranslateError : Error {
         case noResult
         case noInitialResult
@@ -75,13 +68,7 @@ public class Skiff {
         return kotlin
     }
 
-    /// Takes the block of code in the source file after the calling line and before the next token (default, `"} verify: {"`), and converts it to Kotlin, executes it in an embedded JVM, and returns the serialized result as a ``JSum``.
-    public func skiff(token: String = "} verify: {", autoport: Bool, preamble: Range<Int>?, file: StaticString = #file, line: UInt = #line) throws -> (source: String, result: JSum) {
-        let result = try transpile(token: token, autoport: autoport, preamble: preamble, file: file, line: line)
-        return (result.source, try result.eval())
-    }
-
-    public func transpile(token: String = "} verify: {", autoport: Bool, preamble: Range<Int>?, file: StaticString = #file, line: UInt = #line) throws -> (source: String, eval: () throws -> (JSum)) {
+    public func transpile(token: String = "} verify: {", autoport: Bool, preamble: Range<Int>?, file: StaticString = #file, line: UInt = #line) throws -> String {
         let code = try String(contentsOf: URL(fileURLWithPath: file.description))
         let lines = code.split(separator: "\n", omittingEmptySubsequences: false).map({ String($0) })
         let initial = Array(lines[.init(line)...])
@@ -111,7 +98,7 @@ public class Skiff {
         let swift = parts.joined(separator: "\n")
 
         let kotlin = try translate(swift: swift, autoport: autoport) // + (hasReturn ? "()" : "")
-        return (kotlin, { try self.context.eval(.val(.str(kotlin))).jsum() })
+        return kotlin
     }
 
     /// Takes code with `#if KOTLIN … #else … #endif` and returns just the Kotlin code.
@@ -208,10 +195,11 @@ public class Skiff {
 
         try kotlin.write(to: kotlinURL, atomically: true, encoding: .utf8)
 
+        var actions: [String] = []
         #if DEBUG
-        let actions = ["testDebugUnitTest"]
+        actions = ["testDebugUnitTest"]
         #else
-        let actionss = ["testReleaseUnitTest"]
+        actions = ["testReleaseUnitTest"]
         #endif
 
         //actions = ["cleanTest"] + actions // cleanTest needs to be run or else the tests won't be re-run

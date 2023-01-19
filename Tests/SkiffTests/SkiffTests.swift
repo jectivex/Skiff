@@ -6,7 +6,23 @@ import GryphonLib
 import JSum
 
 final class SkiffTests: XCTestCase {
-    static let skiff = Result { try Skiff() }
+    /// A shared skiff context for evaluating transpiled results
+    static let skiff = Result { try SkiffContext() }
+
+    class SkiffContext {
+        let skiff: Skiff
+        let context: KotlinContext
+
+        public init(skiff: Skiff = Skiff()) throws {
+            self.skiff = skiff
+            self.context = try KotlinContext()
+        }
+
+        public func transpile(autoport: Bool, preamble: Range<Int>?, file: StaticString = #file, line: UInt = #line) throws -> (source: String, eval: () throws -> (JSum)) {
+            let kotlin = try skiff.transpile(autoport: autoport, preamble: preamble, file: file, line: line)
+            return (kotlin, { try self.context.eval(.val(.str(kotlin))).jsum() })
+        }
+    }
 
     func testSimpleTranslation() throws {
         try compare(swift: "1+2", kotlin: "1 + 2")
@@ -720,7 +736,7 @@ final class SkiffTests: XCTestCase {
     }
 
     func compare(swift: String, kotlin: String, file: StaticString = #file, line: UInt = #line) throws {
-        XCTAssertEqual(kotlin.trimmed(), try Self.skiff.get().translate(swift: swift, file: file, line: line).trimmed(), file: file, line: line)
+        XCTAssertEqual(kotlin.trimmed(), try Skiff().translate(swift: swift, file: file, line: line).trimmed(), file: file, line: line)
     }
 
     /// Run a few simple simple Kotlin snippets and check their output

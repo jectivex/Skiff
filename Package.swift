@@ -17,14 +17,7 @@ let package = Package(
         //.package(url: "https://github.com/jectivex/Gryphon.git", from: "0.2.2"), // 'gryphon' >= 0.2.0 cannot be used because no versions of 'gryphon' match the requirement 0.2.1..<1.0.0 and package 'gryphon' is required using a stable-version but 'gryphon' depends on an unstable-version package 'swift-syntax'.
     ],
     targets: [
-        .target(
-            name: "Skiff",
-            dependencies: [
-                .product(name: "GryphonLib", package: "Gryphon"),
-                .product(name: "KotlinKanji", package: "Kanji"),
-            ]),
-        .testTarget(
-            name: "SkiffTests",
-            dependencies: ["Skiff"]),
+        .target(name: "Skiff", dependencies: [.product(name: "GryphonLib", package: "Gryphon")]),
+        .testTarget(name: "SkiffTests", dependencies: ["Skiff", .product(name: "KotlinKanji", package: "Kanji")]),
     ]
 )
