@@ -517,6 +517,36 @@ final class SkiffTests: XCTestCase {
         }
     }
 
+    func testStaticCompanionFunctions() throws {
+        try check(autoport: true, swift: "abc", java: "abc", kotlin: .str("abc")) { jvm in
+            class Foo {
+                init() {
+                }
+
+                static func bar() -> String {
+                    return "abc"
+                }
+            }
+
+            return Foo.bar()
+        } verify: {
+        """
+        internal open class Foo {
+            companion object {
+                fun bar(): String {
+                    return "abc"
+                }
+            }
+
+            constructor() {
+            }
+        }
+
+        Foo.bar()
+        """
+        }
+    }
+
     func testKotlinBlock() throws {
         try check(compile: false, autoport: true, swift: true, kotlin: .bol(false)) { jvm in
 
@@ -622,36 +652,6 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-    func testGenerateModuleInterface() throws {
-        XCTAssertTrue(try JavaFileSystemModule().exists(at: "/dev/null"))
-        XCTAssertTrue(try SwiftFileSystemModule().exists(at: "/dev/null"))
-
-        XCTAssertFalse(try JavaFileSystemModule().exists(at: "/etc/NOT_A_FILE"))
-        XCTAssertFalse(try SwiftFileSystemModule().exists(at: "/etc/NOT_A_FILE"))
-
-        // Must be top-level, or else: Protocol 'FileSystemModule' cannot be nested inside another declaration
-        let preamble = FileSystemModuleBlockStart..<FileSystemModuleBlockEnd
-        try check(compile: true, autoport: true, swift: true, java: true, kotlin: .bol(true), preamble: preamble) { jvm in
-            try fileSystem(jvm: jvm).exists(at: "/etc/hosts")
-        } verify: {
-        """
-        interface FileSystemModule {
-            fun exists(path: String): Boolean
-        }
-
-        fun fileSystem(jvm: Boolean): FileSystemModule = if (jvm) { JavaFileSystemModule() } else { JavaFileSystemModule() }
-
-        internal data class JavaFileSystemModule(
-            private val x: Boolean = false
-        ): FileSystemModule {
-            override fun exists(path: String): Boolean = java.io.File((path)).exists() == true
-        }
-
-        fileSystem(jvm = jvm).exists(path = "/etc/hosts")
-        """
-        }
-
-    }
 
     /// Parse the source file for the given Swift code, translate it into Kotlin, interpret it in the embedded ``KotlinContext``, and compare the result to the Swift result.
     @discardableResult func check<T : Equatable>(compile: Bool? = nil, autoport: Bool = false, swift: T, java: T? = nil, kotlin: JSum? = .none, preamble: Range<Int>? = nil, file: StaticString = #file, line: UInt = #line, block: (Bool) throws -> T, verify: () -> String?) throws -> JSum? {
@@ -816,6 +816,8 @@ final class SkiffTests: XCTestCase {
 
 
 
+// MARK: FileSystemModuleBlock
+
 // inline translation elsewhere in the file, since protocols cannot be nested inside anything
 let FileSystemModuleBlockStart = #line
 
@@ -846,4 +848,63 @@ struct JavaFileSystemModule : FileSystemModule {
 
 let FileSystemModuleBlockEnd = #line
 
+extension SkiffTests {
+    func testGenerateModuleInterface() throws {
+        XCTAssertTrue(try JavaFileSystemModule().exists(at: "/dev/null"))
+        XCTAssertTrue(try SwiftFileSystemModule().exists(at: "/dev/null"))
 
+        XCTAssertFalse(try JavaFileSystemModule().exists(at: "/etc/NOT_A_FILE"))
+        XCTAssertFalse(try SwiftFileSystemModule().exists(at: "/etc/NOT_A_FILE"))
+
+        // Must be top-level, or else: Protocol 'FileSystemModule' cannot be nested inside another declaration
+        let preamble = FileSystemModuleBlockStart..<FileSystemModuleBlockEnd
+        try check(compile: true, autoport: true, swift: true, java: true, kotlin: .bol(true), preamble: preamble) { jvm in
+            try fileSystem(jvm: jvm).exists(at: "/etc/hosts")
+        } verify: {
+        """
+        interface FileSystemModule {
+            fun exists(path: String): Boolean
+        }
+
+        fun fileSystem(jvm: Boolean): FileSystemModule = if (jvm) { JavaFileSystemModule() } else { JavaFileSystemModule() }
+
+        internal data class JavaFileSystemModule(
+            private val x: Boolean = false
+        ): FileSystemModule {
+            override fun exists(path: String): Boolean = java.io.File((path)).exists() == true
+        }
+
+        fileSystem(jvm = jvm).exists(path = "/etc/hosts")
+        """
+        }
+
+    }
+}
+
+
+// MARK: StaticExtensionModule
+
+let StaticExtensionModuleBlockStart = #line
+
+class StaticExtensionDemo {
+    init() { }
+}
+
+extension StaticExtensionDemo {
+    static func abc() -> String { "xyz" }
+}
+
+let StaticExtensionModuleBlockEnd = #line
+
+extension SkiffTests {
+    func testStaticFuncExtensionMistranslation() throws {
+        XCTAssertThrowsError(try check(autoport: true, swift: "abc", java: "abc", kotlin: .str("abc"), preamble: StaticExtensionModuleBlockStart..<StaticExtensionModuleBlockEnd) { jvm in
+            "abc"
+        } verify: {
+        """
+        """
+        }) { error in
+            XCTAssertTrue("\(error)".contains("ERROR Unresolved reference: Companion"), "unexpected error: \(error)")
+        }
+    }
+}
