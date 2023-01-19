@@ -86,7 +86,9 @@ public class Skiff {
         let lines = code.split(separator: "\n", omittingEmptySubsequences: false).map({ String($0) })
         let initial = Array(lines[.init(line)...])
         guard let brace = initial.firstIndex(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(token) }) else {
-            throw CocoaError(.formatting)
+            struct UnableToFindMatchingVerifyBlock : Error {
+            }
+            throw UnableToFindMatchingVerifyBlock()
         }
 
         var parts = ["let jvm = true"] // when running in Kotlin mode, jvm is always true
@@ -168,7 +170,11 @@ public class Skiff {
         let exitCode = process.terminationStatus
         if exitCode != 0 {
             // TODO: read the standard output and translate some common failures into an error enum
-            throw CocoaError(.serviceApplicationLaunchFailed)
+            struct ChildTaskFailed : Error {
+                let exitCode: Int32
+            }
+
+            throw ChildTaskFailed(exitCode: exitCode)
         }
     }
 
@@ -202,7 +208,15 @@ public class Skiff {
 
         try kotlin.write(to: kotlinURL, atomically: true, encoding: .utf8)
 
-        try gradle(project: projectRoot.path, actions: ["cleanTest", "testDebugUnitTest"]) // cleanTest needs to be run or else the tests won't be re-run
+        #if DEBUG
+        let actions = ["testDebugUnitTest"]
+        #else
+        let actionss = ["testReleaseUnitTest"]
+        #endif
+
+        //actions = ["cleanTest"] + actions // cleanTest needs to be run or else the tests won't be re-run
+
+        try gradle(project: projectRoot.path, actions: actions)
 
     }
 }
