@@ -1,9 +1,12 @@
 import Foundation
-import JSum
 import GryphonLib
 
 /// A container for a Swift-to-Kotlin translation context.
 public struct Skiff {
+    public init() {
+
+    }
+    
     public enum TranslateError : Error {
         case noResult
         case noInitialResult
