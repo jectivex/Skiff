@@ -735,6 +735,67 @@ final class SkiffTests: XCTestCase {
 
     }
 
+    func testDeinitBlockMistranslated() throws {
+        XCTAssertThrowsError(try check(compile: true, autoport: true, swift: true, kotlin: true) { jvm in
+            class Foo {
+                init() {
+                }
+
+                // we might expect this to be translated into a finally block…
+                deinit {
+                }
+            }
+            return true
+        } verify: {
+        """
+        """
+        }) { error in
+            XCTAssertTrue("\(error)".contains("Unknown declaration (failed to translate SwiftSyntax node)."), "unexpected error: \(error)")
+        }
+    }
+
+    func testEnumAssociatedCases() throws {
+        try check(compile: true, autoport: true, swift: true, kotlin: true) { jvm in
+            enum Pet {
+                case cat
+                case other(name: String)
+            }
+            return true
+        } verify: {
+        """
+        internal sealed class Pet {
+            class Cat: Pet()
+            class Other(val name: String): Pet()
+        }
+
+        true
+        """
+        }
+    }
+
+    func testEnumAssociatedCasesMistranslated() throws {
+        XCTAssertThrowsError(try check(compile: true, autoport: true, swift: "cat", kotlin: "cat") { jvm in
+            enum Pet {
+                case cat
+                case other(name: String)
+            }
+            var p = Pet.cat
+            p = .cat
+            let petName: String
+            switch p {
+            case .cat: petName = "cat"
+            case .other(let name): petName = name
+            }
+            return petName
+        } verify: {
+        """
+        """
+        }) { error in
+            // error: Please add the associated value's label, e.g. "case .other(label: ...)" (failed to translate SwiftSyntax node).
+            XCTAssertTrue("\(error)".contains("Please add the associated value's label"), "unexpected error: \(error)")
+        }
+    }
+
     func compare(swift: String, kotlin: String, file: StaticString = #file, line: UInt = #line) throws {
         XCTAssertEqual(kotlin.trimmed(), try Skiff().translate(swift: swift, file: file, line: line).trimmed(), file: file, line: line)
     }
