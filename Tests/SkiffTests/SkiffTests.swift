@@ -558,6 +558,16 @@ final class SkiffTests: XCTestCase {
         }
     }
 
+    // one possible solution…
+
+    #if KOTLIN
+    typealias LocalURL = java.io.File
+    typealias RemoteURL = java.net.URL
+    #else
+    typealias LocalURL = Foundation.URL
+    typealias RemoteURL = Foundation.URL
+    #endif
+
     /// `Foundation.URL` does not have a single obvious analog in Java, which has both `java.io.File` and `java.net.URL`.
     func testFoundationURLTranslation() throws {
         try check(compile: true, autoport: true, swift: "/tmp", kotlin: .str("/tmp")) { jvm in
@@ -672,23 +682,6 @@ final class SkiffTests: XCTestCase {
         true
         """
         }
-
-        // SkiffTests.swift:465: error: -[SkiffTests.SkiffTests testAsyncFunctionsNotTranslated] : failed: caught error: ":3:21: error: Unknown expression (failed to translate SwiftSyntax node).
-
-//        try check(compile: false, autoport: true, swift: true, java: true, kotlin: true) { jvm in
-//            func asyncFunc(url: URL) async throws -> Data {
-//                try await URLSession.shared.data(for: URLRequest(url: url)).0
-//            }
-//
-//            return true
-//        } verify: {
-//        """
-//        fun asyncFunc(): String = ""
-//
-//        true
-//        """
-//        }
-
     }
 
     func testDeferStatementsMistranslated() throws {

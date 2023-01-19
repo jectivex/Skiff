@@ -28,6 +28,8 @@ public class Skiff {
             swift = try processKotlinBlock(code: swift)
         }
 
+        //print("### swift:", swift)
+
         let fileURL = URL(fileURLWithPath: UUID().uuidString, isDirectory: false, relativeTo: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)).appendingPathExtension("swift")
 
         //#warning("TODO: compile in-memory")
@@ -138,7 +140,73 @@ public class Skiff {
 
         return code
     }
+
+    /// Forks a gradle process for the given projects. Assumes that `gradle` is somewhere in the PATH.
+    public func gradle(project projectPath: String, actions: [String]) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env", isDirectory: false)
+        var args: [String] = []
+        args += [
+            "ANDROID_HOME=" + (("~/Library/Android/sdk" as NSString).expandingTildeInPath), // otherwise: “SDK location not found. Define a valid SDK location with an ANDROID_HOME environment variable or by setting the sdk.dir path in your project's local properties file”
+            "GRADLE_OPTS=-Xmx512m", // otherwise: “To honour the JVM settings for this build a single-use Daemon process will be forked.”
+            ]
+
+        args += ["gradle"] + actions
+        args += [
+            //"--no-daemon",
+            "--console", "plain",
+            //"--info",
+            "--rerun-tasks", // re-run tests
+            "--project-dir", projectPath,
+        ]
+
+        process.arguments = args
+
+        process.launch()
+        process.waitUntilExit()
+
+        let exitCode = process.terminationStatus
+        if exitCode != 0 {
+            // TODO: read the standard output and translate some common failures into an error enum
+            throw CocoaError(.serviceApplicationLaunchFailed)
+        }
+    }
+
+    public func transpileAndTest(file: String = #file) throws {
+        let testSourceURL = URL(fileURLWithPath: file, isDirectory: false)
+        let testBase = testSourceURL
+            .deletingLastPathComponent()
+        let projectRoot = testBase
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+
+        let testFolderName = testBase.lastPathComponent
+        if !testFolderName.hasSuffix("Tests") {
+            struct SourceFileExpectedInTestsFolder : Error { }
+            throw SourceFileExpectedInTestsFolder()
+        }
+
+        let moduleName = String(testFolderName.dropLast(5))
+        //print("### building module:", moduleName)
+
+        let sourceBase = URL(fileURLWithPath: "Sources", isDirectory: true, relativeTo: projectRoot)
+
+        let sourceURL = URL(fileURLWithPath: "\(moduleName)/\(moduleName).swift", isDirectory: false, relativeTo: sourceBase)
+        //let kotlinURL = URL(fileURLWithPath: "\(moduleName)Kotlin/\(moduleName).kt", isDirectory: false, relativeTo: sourceBase)
+        let kotlinURL = sourceURL.deletingPathExtension().appendingPathExtension("kt")
+
+        let source = try String(contentsOf: sourceURL)
+        var kotlin = try self.translate(swift: source, autoport: true)
+
+        kotlin = "package \(moduleName)\n\n" + kotlin
+
+        try kotlin.write(to: kotlinURL, atomically: true, encoding: .utf8)
+
+        try gradle(project: projectRoot.path, actions: ["cleanTest", "testDebugUnitTest"]) // cleanTest needs to be run or else the tests won't be re-run
+
+    }
 }
+
 
 extension String {
     public func trimmed() -> String {
