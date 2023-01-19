@@ -107,27 +107,30 @@ public struct Skiff {
     /// Takes code with `#if KOTLIN … #else … #endif` and returns just the Kotlin code.
     func processKotlinBlock(code: String, gryphonBlocks: Set<String> = ["KOTLIN"]) throws -> String {
         var code = code
-        if !gryphonBlocks.isEmpty {
-            for token in gryphonBlocks {
-                code = code.replacingOccurrences(of: "#if \(token)", with: "#if GRYPHON")
-            }
-            return code
-        }
+
+        // we could translate #if KOTLIN to #if GRYPHON, but the Gryphon preprocessor block doesn't work for some nesting scenarios, so we merely regex-out the blocks instead
+
+//        if !gryphonBlocks.isEmpty {
+//            for token in gryphonBlocks {
+//                code = code.replacingOccurrences(of: "#if \(token)", with: "#if GRYPHON")
+//            }
+//            return code
+//        }
 
         for token in gryphonBlocks {
             /// handle `#if KOTLIN … #else … #endif`
             let ifElseBlock = try NSRegularExpression(pattern: "\n *#if \(token) *\n(?<KOTLIN>.*)\n *#else *\n(?<SWIFT>.*)\n *#endif", options: [.dotMatchesLineSeparators])
             /// handle `#if KOTLIN … #endif`
-            let ifBlock = try NSRegularExpression(pattern: "\n *#if \(token) *\n(?<KOTLIN>.*)\n *#endif", options: [.dotMatchesLineSeparators])
+//            let ifBlock = try NSRegularExpression(pattern: "\n *#if \(token) *\n(?<KOTLIN>.*)\n *#endif", options: [.dotMatchesLineSeparators])
 
 
             code = code
                 .replacing(expression: ifElseBlock, captureGroups: ["KOTLIN", "SWIFT"], replacing: { paramName, paramValue in
                     paramName == "KOTLIN" ? "\n" + paramValue : nil
                 })
-                .replacing(expression: ifBlock, captureGroups: ["KOTLIN"], replacing: { paramName, paramValue in
-                    paramName == "KOTLIN" ? "\n" + paramValue : nil
-                })
+//                .replacing(expression: ifBlock, captureGroups: ["KOTLIN"], replacing: { paramName, paramValue in
+//                    paramName == "KOTLIN" ? "\n" + paramValue : nil
+//                })
         }
 
         return code

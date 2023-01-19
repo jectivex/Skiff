@@ -451,16 +451,15 @@ final class SkiffTests: XCTestCase {
             func doSomething() -> Bool {
                 #if KOTLIN
                 return true
-                #endif
-
+                #else
                 return false
+                #endif
             }
             return doSomething()
         } verify: {
         """
         fun doSomething(): Boolean {
             return true
-            return false
         }
 
         doSomething()
@@ -620,6 +619,8 @@ final class SkiffTests: XCTestCase {
 
             #if KOTLIN
             typealias URL = java.io.File
+            #else
+            
             #endif
 
             func makeURL(path: String) -> URL {
