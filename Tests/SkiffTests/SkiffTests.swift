@@ -395,6 +395,33 @@ final class SkiffTests: XCTestCase {
         }
     }
 
+//    func testComposeFunctions() throws {
+//        try check(compile: false, swift: 0, kotlin: 0) { _ in
+//            #if GRYPHON
+//            class RootView: ComposeView {
+//                func body() -> ComposeView {
+//                    return TabView { [
+//                        ContentView(),
+//                        DestinationTwo(),
+//                        ContentView(),
+//                    ] }
+//                }
+//
+//                @Composable
+//                override func Compose(context: ComposeContext) {
+//                    body().Compose(context)
+//                }
+//            }
+//            #endif
+//
+//            return 0
+//        } verify: {
+//            """
+//            """
+//        }
+//
+//    }
+
     func testCrossPlatformTmpDir() throws {
         let tmpdir = NSTemporaryDirectory()
         #if os(Linux)
@@ -797,6 +824,31 @@ final class SkiffTests: XCTestCase {
         }
     }
 
+    func testStringInterpolationTranspilation() throws {
+        try check(swift: "3", kotlin: "3") { _ in
+            "\(1 + 2)"
+        } verify: {
+            """
+            "${1 + 2}"
+            """
+        }
+
+        try check(autoport: true, swift: "3", kotlin: "3") { _ in
+            func add(x: Int, y: Int) -> Int {
+                x + y
+            }
+            return "\(add(x: 1, y: 2))"
+        } verify: {
+            """
+            fun add(x: Int, y: Int): Int = x + y
+
+            "${add(x = 1, y = 2)}"
+            """
+        }
+
+    }
+
+
     func compare(swift: String, kotlin: String, file: StaticString = #file, line: UInt = #line) throws {
         XCTAssertEqual(kotlin.trimmed(), try Skiff().translate(swift: swift, file: file, line: line).trimmed(), file: file, line: line)
     }
@@ -881,6 +933,45 @@ extension SkiffTests {
 
     }
 }
+
+
+// MARK: StructExtensionModule
+
+let StructExtensionModuleBlockStart = #line
+
+public struct StructExtensionDemo {
+    public let x: Int
+}
+
+extension StructExtensionDemo {
+    public func abc() -> String {
+        "abc"
+    }
+}
+
+let StructExtensionModuleBlockEnd = #line
+
+extension SkiffTests {
+    func testStructExtensionTranslation() throws {
+        try check(autoport: true, swift: "abc", kotlin: .str("abc"), preamble: StructExtensionModuleBlockStart..<StructExtensionModuleBlockEnd) { jvm in
+            let demo = StructExtensionDemo(x: 1)
+            return demo.abc()
+        } verify: {
+        """
+         data class StructExtensionDemo(
+            val x: Int
+        )
+
+        fun StructExtensionDemo.abc(): String = "abc"
+
+        internal val demo: StructExtensionDemo = StructExtensionDemo(x = 1)
+
+        demo.abc()
+        """
+        }
+    }
+}
+
 
 
 // MARK: StaticExtensionModule

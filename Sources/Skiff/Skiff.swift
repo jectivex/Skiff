@@ -59,9 +59,15 @@ public struct Skiff {
             //kotlin = kotlin.replacingOccurrences(of: ".javaString", with: "") // string conversions don't need to be explicit
 
             // e.g., convert java$lang$String to java.lang.String
-            // TODO: make less fragile!
-            kotlin = kotlin.replacingOccurrences(of: "$", with: ".")
+            for package in [
+                "java$lang$",
+                "java$io$",
+                "java$util$",
+            ] {
+                kotlin = kotlin.replacingOccurrences(of: package, with: package.replacingOccurrences(of: "$", with: "."))
+            }
 
+            // fixed an issue with the top-level functions:
             // failed: caught error: "ERROR Modifier 'internal' is not applicable to 'local function' (ScriptingHost54e041a4_Line_0.kts:12:1)"
             kotlin = kotlin.replacingOccurrences(of: "internal fun ", with: "fun ")
         }
