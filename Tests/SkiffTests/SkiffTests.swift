@@ -848,6 +848,38 @@ final class SkiffTests: XCTestCase {
 
     }
 
+    func testWeakRefMisTranslation() throws {
+        try check(compile: false, swift: true, kotlin: true) { _ in
+            class XYZ {
+                var a: String
+                // doesn't translate into Kotlin correctly
+                weak var b: XYZ?
+
+                init(a: String, b: XYZ?) {
+                    self.a = a
+                    self.b = b
+                }
+            }
+
+            return true
+        } verify: {
+            """
+             internal open class XYZ {
+                open var a: String
+            
+                // doesn't translate into Kotlin correctly
+                weak open var b: XYZ? = null
+
+                constructor(a: String, b: XYZ?) {
+                    this.a = a
+                    this.b = b
+                }
+            }
+
+            true
+            """
+        }
+    }
 
     func compare(swift: String, kotlin: String, file: StaticString = #file, line: UInt = #line) throws {
         XCTAssertEqual(kotlin.trimmed(), try Skiff().translate(swift: swift, file: file, line: line).trimmed(), file: file, line: line)

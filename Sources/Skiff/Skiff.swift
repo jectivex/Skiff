@@ -64,7 +64,8 @@ public struct Skiff {
                 "java$io$",
                 "java$util$",
             ] {
-                kotlin = kotlin.replacingOccurrences(of: package, with: package.replacingOccurrences(of: "$", with: "."))
+                let dotsInsteadOfDollars = package.replacingOccurrences(of: "$", with: ".")
+                kotlin = kotlin.replacingOccurrences(of: package, with: dotsInsteadOfDollars)
             }
 
             // fixed an issue with the top-level functions:
