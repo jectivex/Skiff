@@ -24,6 +24,37 @@ final class SkiffTests: XCTestCase {
         }
     }
 
+    /// Parse the source file for the given Swift code, translate it into Kotlin, interpret it in the embedded ``KotlinContext``, and compare the result to the Swift result.
+    @discardableResult func check<T : Equatable>(compile: Bool? = nil, autoport: Bool = false, swift: T, java: T? = nil, kotlin: JSum? = .none, preamble: Range<Int>? = nil, file: StaticString = #file, line: UInt = #line, block: (Bool) async throws -> T, verify: () -> String?) async throws -> JSum? {
+        let (k, jf) = try Self.skiff.get().transpile(autoport: autoport, preamble: preamble, file: file, line: line)
+        let k1 = (k.hasPrefix("internal val jvm: Boolean = true") ? String(k.dropFirst(32)) : k).trimmed()
+        if let expected = verify(), expected.trimmed().isEmpty == false {
+            XCTAssertEqual(expected.trimmed(), k1.trimmed(), "Expected source disagreed", file: file, line: line)
+            if expected.trimmed() != k1.trimmed() {
+                return .nul
+            }
+        } else {
+            print("### fill in Kotlin expectation test case:###\n", k1)
+        }
+
+        let result = try await block(false)
+        XCTAssertEqual(result, swift, "Swift values disagreed", file: file, line: line)
+
+        // also execute the block in Java mode
+        if let java = java {
+            let result = try await block(true)
+            XCTAssertEqual(result, java, "Java values disagreed", file: file, line: line)
+        }
+
+        if compile != false, let kotlin = kotlin {
+            let j = try jf()
+            XCTAssertEqual(j, kotlin, "Kotlin values disagreed", file: file, line: line)
+            return j
+        } else {
+            return nil
+        }
+    }
+
     func testSimpleTranslation() throws {
         try compare(swift: "1+2", kotlin: "1 + 2")
         try compare(swift: "{ return 1+2 }", kotlin: "{ 1 + 2 }")
@@ -62,55 +93,55 @@ final class SkiffTests: XCTestCase {
         try compare(swift: swift, kotlin: kotlin)
     }
 
-    func testBasic() throws {
-        try check(swift: 6, kotlin: 6) { _ in
+    func testBasic() async throws {
+        try await check(swift: 6, kotlin: 6) { _ in
             1+2+3
         } verify: {
             "1 + 2 + 3"
         }
 
-        try check(swift: 6, kotlin: 6) { _ in
+        try await check(swift: 6, kotlin: 6) { _ in
             1.0+2.0+3.0
         } verify: {
             "1.0 + 2.0 + 3.0"
         }
 
-        try check(swift: "XYZ", kotlin: "XYZ") { _ in
+        try await check(swift: "XYZ", kotlin: "XYZ") { _ in
             "X" + "Y" + "Z"
         } verify: {
             #""X" + "Y" + "Z""#
         }
     }
 
-    func testListConversions() throws {
-        try check(swift: [10], kotlin: [10]) { _ in
+    func testListConversions() async throws {
+        try await check(swift: [10], kotlin: [10]) { _ in
             (1...10).filter({ $0 > 9 })
         } verify: {
             "(1..10).filter({ it > 9 })"
         }
 
-        try check(swift: [2, 3, 4], kotlin: [2, 3, 4]) { _ in
+        try await check(swift: [2, 3, 4], kotlin: [2, 3, 4]) { _ in
             [1, 2, 3].map({ $0 + 1 })
         } verify: {
             "listOf(1, 2, 3).map({ it + 1 })"
         }
 
-        try check(swift: 15, kotlin: 15) { _ in
+        try await check(swift: 15, kotlin: 15) { _ in
             [1, 5, 9].reduce(0, { x, y in x + y })
         } verify: {
             "listOf(1, 5, 9).fold(0, { x, y -> x + y })"
         }
 
         // demonstration that Gryphone mis-translates anonymous closure parameters beyond $0
-        try check(swift: 15) { _ in
+        try await check(swift: 15) { _ in
             [1, 5, 9].reduce(0, { $0 + $1 })
         } verify: {
             "listOf(1, 5, 9).fold(0, { it + $1 })"
         }
     }
 
-    func testEnumToEnum() throws {
-        try check(swift: "dog", kotlin: "dog") { _ in
+    func testEnumToEnum() async throws {
+        try await check(swift: "dog", kotlin: "dog") { _ in
             enum Pet : String {
                 case cat, dog
             }
@@ -130,7 +161,7 @@ final class SkiffTests: XCTestCase {
             """
         }
 
-        try check(swift: "meow", kotlin: "meow") { _ in
+        try await check(swift: "meow", kotlin: "meow") { _ in
             enum Pet : String {
                 case cat, dog
             }
@@ -163,8 +194,8 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-    func testStructToDataClass() throws {
-        try check(swift: 7, kotlin: 7) { _ in
+    func testStructToDataClass() async throws {
+        try await check(swift: 7, kotlin: 7) { _ in
             struct Thing {
                 var x, y: Int
             }
@@ -184,7 +215,7 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-    func testTranslationComments() throws {
+    func testTranslationComments() async throws {
         var tmpdir = NSTemporaryDirectory()
         #if os(Linux)
         let jtmpdir = tmpdir.trimmingTrailingCharacters(in: CharacterSet(["/"]))
@@ -192,7 +223,7 @@ final class SkiffTests: XCTestCase {
         let jtmpdir = tmpdir
         #endif
 
-        try check(autoport: true, swift: String?.some(tmpdir), java: String?.some(jtmpdir), kotlin: .str(jtmpdir)) { jvm in
+        try await check(autoport: true, swift: String?.some(tmpdir), java: String?.some(jtmpdir), kotlin: .str(jtmpdir)) { jvm in
             func tmpdir() throws -> String? {
                 if jvm {
                     return try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))?.toSwiftString()
@@ -219,8 +250,8 @@ final class SkiffTests: XCTestCase {
     }
 
     /// This is a known and unavoidable difference in the behavior of Swift and Kotlin: data classes are passed by reference
-    func testMutableStructsBehaveDifferently() throws {
-        try check(swift: 12, kotlin: .num(12 + 1)) { _ in
+    func testMutableStructsBehaveDifferently() async throws {
+        try await check(swift: 12, kotlin: .num(12 + 1)) { _ in
             struct Thing {
                 var x, y: Int
             }
@@ -282,12 +313,12 @@ final class SkiffTests: XCTestCase {
         XCTAssertEqual([4, 6, 15], characterCounts.counterArray)
     }
 
-    func testGenerateFunctionBuilder() throws {
+    func testGenerateFunctionBuilder() async throws {
         // does not compile, so we do not verify:
 
         // failed: caught error: "ERROR Data class must have at least one primary constructor parameter (ScriptingHost54e041a4_Line_6.kts:1:50)
 
-        try check(swift: [4, 6, 15], kotlin: .none) { _ in
+        try await check(swift: [4, 6, 15], kotlin: .none) { _ in
             @resultBuilder // FIXME: Gryphon does not grok @resultBuilder
             struct StringCharacterCounterBuilder {
                 static func buildBlock(_ strings: String...) -> [Int] {
@@ -353,8 +384,8 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-    func testGenerateCompose() throws {
-        try check(swift: 0, kotlin: 0) { _ in
+    func testGenerateCompose() async throws {
+        try await check(swift: 0, kotlin: 0) { _ in
             class ComposeHarness {
                 struct Message : Hashable, Codable {
                     let author, body: String
@@ -422,14 +453,14 @@ final class SkiffTests: XCTestCase {
 //
 //    }
 
-    func testCrossPlatformTmpDir() throws {
+    func testCrossPlatformTmpDir() async throws {
         let tmpdir = NSTemporaryDirectory()
         #if os(Linux)
         let jtmpdir = tmpdir.trimmingTrailingCharacters(in: CharacterSet(["/"]))
         #else
         let jtmpdir = tmpdir
         #endif
-        try check(autoport: true, swift: String?.some(tmpdir), java: jtmpdir, kotlin: .str(jtmpdir)) { jvm in
+        try await check(autoport: true, swift: String?.some(tmpdir), java: jtmpdir, kotlin: .str(jtmpdir)) { jvm in
             func tmpdir() throws -> String? {
                 jvm ? try java$lang$System.getProperty(java$lang$String("java.io.tmpdir"))?.toSwiftString() : /* gryphon value: null */ NSTemporaryDirectory()
             }
@@ -444,8 +475,8 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-    func testCrossPlatformRandom() throws {
-        try check(autoport: true, swift: true, java: true, kotlin: .bol(true)) { jvm in
+    func testCrossPlatformRandom() async throws {
+        try await check(autoport: true, swift: true, java: true, kotlin: .bol(true)) { jvm in
 
             func generateRandomNumber() throws -> Int64 {
                 if jvm {
@@ -473,8 +504,8 @@ final class SkiffTests: XCTestCase {
 
     }
 
-    func testTranspileKotlinBlocks() throws {
-        try check(autoport: true, swift: false, kotlin: .bol(true)) { jvm in
+    func testTranspileKotlinBlocks() async throws {
+        try await check(autoport: true, swift: false, kotlin: .bol(true)) { jvm in
             func doSomething() -> Bool {
                 #if KOTLIN
                 return true
@@ -495,8 +526,8 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-    func testPreprocessorRandom() throws {
-        try check(autoport: true, swift: true, java: true, kotlin: .bol(true)) { jvm in
+    func testPreprocessorRandom() async throws {
+        try await check(autoport: true, swift: true, java: true, kotlin: .bol(true)) { jvm in
 
             func generateRandomNumber() throws -> Int64 {
                 #if KOTLIN
@@ -518,8 +549,8 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-    func testPreprocessorRandomVal() throws {
-        try check(autoport: true, swift: true, java: true, kotlin: .bol(true)) { jvm in
+    func testPreprocessorRandomVal() async throws {
+        try await check(autoport: true, swift: true, java: true, kotlin: .bol(true)) { jvm in
 
             func generateRandomNumber() throws -> Int64 {
                 #if KOTLIN
@@ -543,8 +574,8 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-    func testStaticCompanionFunctions() throws {
-        try check(autoport: true, swift: "abc", java: "abc", kotlin: .str("abc")) { jvm in
+    func testStaticCompanionFunctions() async throws {
+        try await check(autoport: true, swift: "abc", java: "abc", kotlin: .str("abc")) { jvm in
             class Foo {
                 init() {
                 }
@@ -573,8 +604,8 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-    func testKotlinBlock() throws {
-        try check(compile: false, autoport: true, swift: true, kotlin: .bol(false)) { jvm in
+    func testKotlinBlock() async throws {
+        try await check(compile: false, autoport: true, swift: true, kotlin: .bol(false)) { jvm in
 
             func testKotlinBlock() throws -> Bool {
                 #if KOTLIN
@@ -641,8 +672,8 @@ final class SkiffTests: XCTestCase {
     #endif
 
     /// `Foundation.URL` does not have a single obvious analog in Java, which has both `java.io.File` and `java.net.URL`.
-    func testFoundationURLTranslation() throws {
-        try check(compile: true, autoport: true, swift: "/tmp", kotlin: .str("/tmp")) { jvm in
+    func testFoundationURLTranslation() async throws {
+        try await check(compile: true, autoport: true, swift: "/tmp", kotlin: .str("/tmp")) { jvm in
 
             #if KOTLIN
             typealias URL = java.io.File
@@ -681,39 +712,8 @@ final class SkiffTests: XCTestCase {
     }
 
 
-    /// Parse the source file for the given Swift code, translate it into Kotlin, interpret it in the embedded ``KotlinContext``, and compare the result to the Swift result.
-    @discardableResult func check<T : Equatable>(compile: Bool? = nil, autoport: Bool = false, swift: T, java: T? = nil, kotlin: JSum? = .none, preamble: Range<Int>? = nil, file: StaticString = #file, line: UInt = #line, block: (Bool) throws -> T, verify: () -> String?) throws -> JSum? {
-        let (k, jf) = try Self.skiff.get().transpile(autoport: autoport, preamble: preamble, file: file, line: line)
-        let k1 = (k.hasPrefix("internal val jvm: Boolean = true") ? String(k.dropFirst(32)) : k).trimmed()
-        if let expected = verify(), expected.trimmed().isEmpty == false {
-            XCTAssertEqual(expected.trimmed(), k1.trimmed(), "Expected source disagreed", file: file, line: line)
-            if expected.trimmed() != k1.trimmed() {
-                return .nul
-            }
-        } else {
-            print("### fill in Kotlin expectation test case:###\n", k1)
-        }
-
-        let result = try block(false)
-        XCTAssertEqual(result, swift, "Swift values disagreed", file: file, line: line)
-
-        // also execute the block in Java mode
-        if let java = java {
-            let result = try block(true)
-            XCTAssertEqual(result, java, "Java values disagreed", file: file, line: line)
-        }
-
-        if compile != false, let kotlin = kotlin {
-            let j = try jf()
-            XCTAssertEqual(j, kotlin, "Kotlin values disagreed", file: file, line: line)
-            return j
-        } else {
-            return nil
-        }
-    }
-
-    func testAsyncFunctionsNotTranslated() throws {
-        try check(autoport: true, swift: true, java: true, kotlin: true) { jvm in
+    func testAsyncFunctionsNotTranslated() async throws {
+        try await check(autoport: true, swift: true, java: true, kotlin: true) { jvm in
             func asyncFunc() async throws -> String {
                 ""
             }
@@ -728,7 +728,7 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-    func testDeferStatementsMistranslated() throws {
+    func testDeferStatementsMistranslated() async throws {
         // defer turns into finally, which is given the wrong scope for the var x and yields the following compile error:
 
         // SkiffTests.swift:558: error: -[SkiffTests.SkiffTests testDeferStatementsNotTranslated] : failed: caught error: "ERROR Unresolved reference: x (ScriptingHost54e041a4_Line_0.kts:9:9)
@@ -737,7 +737,7 @@ final class SkiffTests: XCTestCase {
 
         // error: failed to translate Gryphon AST into Kotlin: Defer statements are only supported as top-level statements in function bodies.
 
-        try check(compile: false, autoport: true, swift: 1, kotlin: 1) { jvm in
+        try await check(compile: false, autoport: true, swift: 1, kotlin: 1) { jvm in
             func someFunc() -> Int {
                 var x = 1
                 defer { x += 1 }
@@ -763,8 +763,8 @@ final class SkiffTests: XCTestCase {
 
     }
 
-    func testDeinitBlockMistranslated() throws {
-        XCTAssertThrowsError(try check(compile: true, autoport: true, swift: true, kotlin: true) { jvm in
+    func testDeinitBlockMistranslated() async throws {
+        await XCTAssertThrowsErrorAsync(try await check(compile: true, autoport: true, swift: true, kotlin: true) { jvm in
             class Foo {
                 init() {
                 }
@@ -782,8 +782,8 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-    func testEnumAssociatedCases() throws {
-        try check(compile: true, autoport: true, swift: true, kotlin: true) { jvm in
+    func testEnumAssociatedCases() async throws {
+        try await check(compile: true, autoport: true, swift: true, kotlin: true) { jvm in
             enum Pet {
                 case cat
                 case other(name: String)
@@ -801,8 +801,8 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-    func testEnumAssociatedCasesMistranslated() throws {
-        XCTAssertThrowsError(try check(compile: true, autoport: true, swift: "cat", kotlin: "cat") { jvm in
+    func testEnumAssociatedCasesMistranslated() async throws {
+        await XCTAssertThrowsErrorAsync(try await check(compile: true, autoport: true, swift: "cat", kotlin: "cat") { jvm in
             enum Pet {
                 case cat
                 case other(name: String)
@@ -824,8 +824,8 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-    func testStringInterpolationTranspilation() throws {
-        try check(swift: "3", kotlin: "3") { _ in
+    func testStringInterpolationTranspilation() async throws {
+        try await check(swift: "3", kotlin: "3") { _ in
             "\(1 + 2)"
         } verify: {
             """
@@ -833,7 +833,7 @@ final class SkiffTests: XCTestCase {
             """
         }
 
-        try check(autoport: true, swift: "3", kotlin: "3") { _ in
+        try await check(autoport: true, swift: "3", kotlin: "3") { _ in
             func add(x: Int, y: Int) -> Int {
                 x + y
             }
@@ -848,8 +848,8 @@ final class SkiffTests: XCTestCase {
 
     }
 
-    func testWeakRefMisTranslation() throws {
-        try check(compile: false, swift: true, kotlin: true) { _ in
+    func testWeakRefMisTranslation() async throws {
+        try await check(compile: false, swift: true, kotlin: true) { _ in
             class XYZ {
                 var a: String
                 // doesn't translate into Kotlin correctly
@@ -866,7 +866,7 @@ final class SkiffTests: XCTestCase {
             """
              internal open class XYZ {
                 open var a: String
-            
+
                 // doesn't translate into Kotlin correctly
                 weak open var b: XYZ? = null
 
@@ -881,6 +881,7 @@ final class SkiffTests: XCTestCase {
         }
     }
 
+    
     func compare(swift: String, kotlin: String, file: StaticString = #file, line: UInt = #line) throws {
         XCTAssertEqual(kotlin.trimmed(), try Skiff().translate(swift: swift, file: file, line: line).trimmed(), file: file, line: line)
     }
@@ -890,7 +891,6 @@ final class SkiffTests: XCTestCase {
         let ctx = try Self.skiff.get().context
         XCTAssertEqual(3, try ctx.eval("1+2").jsum())
         XCTAssertEqual(3, try ctx.eval("{ 1+2 }()").jsum())
-        XCTAssertEqual(3, try ctx.eval("{ 'a'; 1+2 }()").jsum())
         XCTAssertEqual(3, try ctx.eval("{ 'a'; 1+2 }()").jsum())
         XCTAssertEqual(3, try ctx.eval("{ val x = 3; x }()").jsum())
         XCTAssertEqual(3, try ctx.eval("{ val x = 2; var y = 1; x + y; }()").jsum())
@@ -934,7 +934,7 @@ struct JavaFileSystemModule : FileSystemModule {
 let FileSystemModuleBlockEnd = #line
 
 extension SkiffTests {
-    func testGenerateModuleInterface() throws {
+    func testGenerateModuleInterface() async throws {
         XCTAssertTrue(try JavaFileSystemModule().exists(at: "/dev/null"))
         XCTAssertTrue(try SwiftFileSystemModule().exists(at: "/dev/null"))
 
@@ -943,7 +943,7 @@ extension SkiffTests {
 
         // Must be top-level, or else: Protocol 'FileSystemModule' cannot be nested inside another declaration
         let preamble = FileSystemModuleBlockStart..<FileSystemModuleBlockEnd
-        try check(compile: true, autoport: true, swift: true, java: true, kotlin: .bol(true), preamble: preamble) { jvm in
+        try await check(compile: true, autoport: true, swift: true, java: true, kotlin: .bol(true), preamble: preamble) { jvm in
             try fileSystem(jvm: jvm).exists(at: "/etc/hosts")
         } verify: {
         """
@@ -984,8 +984,8 @@ extension StructExtensionDemo {
 let StructExtensionModuleBlockEnd = #line
 
 extension SkiffTests {
-    func testStructExtensionTranslation() throws {
-        try check(autoport: true, swift: "abc", kotlin: .str("abc"), preamble: StructExtensionModuleBlockStart..<StructExtensionModuleBlockEnd) { jvm in
+    func testStructExtensionTranslation() async throws {
+        try await check(autoport: true, swift: "abc", kotlin: .str("abc"), preamble: StructExtensionModuleBlockStart..<StructExtensionModuleBlockEnd) { jvm in
             let demo = StructExtensionDemo(x: 1)
             return demo.abc()
         } verify: {
@@ -1021,8 +1021,8 @@ extension StaticExtensionDemo {
 let StaticExtensionModuleBlockEnd = #line
 
 extension SkiffTests {
-    func testStaticFuncExtensionMistranslation() throws {
-        XCTAssertThrowsError(try check(autoport: true, swift: "abc", java: "abc", kotlin: .str("abc"), preamble: StaticExtensionModuleBlockStart..<StaticExtensionModuleBlockEnd) { jvm in
+    func testStaticFuncExtensionMistranslation() async throws {
+        await XCTAssertThrowsErrorAsync(try await check(autoport: true, swift: "abc", java: "abc", kotlin: .str("abc"), preamble: StaticExtensionModuleBlockStart..<StaticExtensionModuleBlockEnd) { jvm in
             "abc"
         } verify: {
         """
@@ -1032,3 +1032,56 @@ extension SkiffTests {
         }
     }
 }
+
+// MARK: StringExtensionModule
+
+let StringExtensionModuleBlockStart = #line
+
+#if KOTLIN
+func fetch(url: String) async throws -> String {
+    // FIXME: not really async
+    return ""
+}
+#else
+
+func fetch(url: String) async throws -> String {
+    // FIXME: not really async
+    try String(contentsOf: URL(string: url)!, encoding: .utf8)
+}
+#endif
+
+let StringExtensionModuleBlockEnd = #line
+
+extension SkiffTests {
+    // not yet working
+    func XXXtestStringExtensionTranslation() async throws {
+        try await check(autoport: true, swift: true, kotlin: .bol(true), preamble: StringExtensionModuleBlockStart..<StringExtensionModuleBlockEnd) { jvm in
+            func checkContents() async throws -> Bool {
+                let string = try await fetch(url: "https://example.org")
+                return string.contains("Example Domain")
+            }
+            return try await checkContents()
+        } verify: {
+        """
+        """
+        }
+    }
+}
+
+
+
+
+/// Works around lack of async support in `XCTAssertThrowsError`
+func XCTAssertThrowsErrorAsync<T>(_ asyncExpression: @autoclosure () async throws -> T, message: String = "", file: StaticString = #file, line: UInt = #line, errorHandler: (Error) -> ()) async {
+    let result: Result<T, Error>
+    do {
+        result = .success(try await asyncExpression())
+    } catch {
+        result = .failure(error)
+    }
+
+    XCTAssertThrowsError(try result.get(), message, file: file, line: line) { error in
+        errorHandler(error)
+    }
+}
+
