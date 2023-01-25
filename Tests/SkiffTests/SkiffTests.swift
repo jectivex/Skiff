@@ -27,6 +27,7 @@ final class SkiffTests: XCTestCase {
     /// Parse the source file for the given Swift code, translate it into Kotlin, interpret it in the embedded ``KotlinContext``, and compare the result to the Swift result.
     @discardableResult func check<T : Equatable>(compile: Bool? = nil, autoport: Bool = false, swift: T, java: T? = nil, kotlin: JSum? = .none, preamble: Range<Int>? = nil, file: StaticString = #file, line: UInt = #line, block: (Bool) async throws -> T, verify: () -> String?) async throws -> JSum? {
         let (k, jf) = try Self.skiff.get().transpile(autoport: autoport, preamble: preamble, file: file, line: line)
+
         let k1 = (k.hasPrefix("internal val jvm: Boolean = true") ? String(k.dropFirst(32)) : k).trimmed()
         if let expected = verify(), expected.trimmed().isEmpty == false {
             XCTAssertEqual(expected.trimmed(), k1.trimmed(), "Expected source disagreed", file: file, line: line)
@@ -1072,15 +1073,16 @@ extension SkiffTests {
 
 
 /// Works around lack of async support in `XCTAssertThrowsError`
-func XCTAssertThrowsErrorAsync<T>(_ asyncExpression: @autoclosure () async throws -> T, message: String = "", file: StaticString = #file, line: UInt = #line, errorHandler: (Error) -> ()) async {
+func XCTAssertThrowsErrorAsync<T>(_ asyncExpression: @autoclosure () async throws -> T, message: String? = nil, file: StaticString = #file, line: UInt = #line, errorHandler: (Error) -> ()) async {
     let result: Result<T, Error>
     do {
         result = .success(try await asyncExpression())
     } catch {
         result = .failure(error)
+        //print("XCTAssertThrowsErrorAsync: \(error)")
     }
 
-    XCTAssertThrowsError(try result.get(), message, file: file, line: line) { error in
+    XCTAssertThrowsError(try result.get(), message ?? "\(result)", file: file, line: line) { error in
         errorHandler(error)
     }
 }

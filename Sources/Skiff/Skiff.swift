@@ -109,8 +109,8 @@ public struct Skiff {
         return kotlin
     }
 
-    /// Takes code with `#if KOTLIN … #else … #endif` and returns just the Kotlin code.
-    func processKotlinBlock(code: String, gryphonBlocks: Set<String> = ["KOTLIN"]) throws -> String {
+    /// Takes code with `#if KOTLIN … #else … #endif` or `#if os(Android) … #else … #endif` and returns just the Kotlin code.
+    func processKotlinBlock(code: String, gryphonBlocks: Set<String> = ["KOTLIN", "os\\(Android\\)"]) throws -> String {
         var code = code
 
         // we could translate #if KOTLIN to #if GRYPHON, but the Gryphon preprocessor block doesn't work for some nesting scenarios, so we merely regex-out the blocks instead
