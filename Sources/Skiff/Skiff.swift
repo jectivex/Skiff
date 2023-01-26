@@ -1,5 +1,4 @@
 import Foundation
-import GryphonLib
 
 /// A container for a Swift-to-Kotlin translation context.
 public struct Skiff {
@@ -12,70 +11,43 @@ public struct Skiff {
         case noInitialResult
         case noInitialTranslationResult
     }
+}
 
 
-    public func translate(swift: String, autoport: Bool = false, file: StaticString = #file, line: UInt = #line) throws -> String {
-        var swift = swift
-        // error: Unsupported #if declaration; only `#if GRYPHON`, `#if !GRYPHON` and `#else` are supported (failed to translate SwiftSyntax node).
-        swift = swift.replacingOccurrences(of: "#if canImport(Skiff)", with: "#if GRYPHON")
-
-        // also swap out #if KOTLIN blocks
-        swift = try processKotlinBlock(code: swift)
-
-        //print("### swift:", swift)
-
-        let fileURL = URL(fileURLWithPath: UUID().uuidString, isDirectory: false, relativeTo: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)).appendingPathExtension("swift")
-
-        //#warning("TODO: compile in-memory")
-        try swift.write(to: fileURL, atomically: true, encoding: .utf8)
-
-        // --quiet prevents the translated code from being output to the console
-        // --no-main-file skips wrapping the output in a main fun
-        guard let result = try Driver.performCompilation(withArguments: ["--no-main-file", "--quiet", fileURL.path]) else {
-            throw TranslateError.noResult
-        }
-
-        guard let list = result as? List<Any?> else {
-            throw TranslateError.noInitialResult
-        }
-
-        guard let translation = list.first as? Driver.KotlinTranslation else {
-            throw TranslateError.noInitialTranslationResult
-        }
-
-        var kotlin = translation.kotlinCode
-
-        //print("kotlin:", kotlin.trimmingCharacters(in: .whitespacesAndNewlines))
-
-
-        if autoport {
-            // include #if KOTLIN pre-processor blocks
-
-            // ERROR Type mismatch: inferred type is kotlin.String! but java.lang.String? was expected (ScriptingHost54e041a4_Line_1.kts:1:37)
-            kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "(") // fix unnecessary constructor
-            // kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "kotlin.String(") // fix unnecessary constructor
-            kotlin = kotlin.replacingOccurrences(of: "?.toSwiftString()", with: "") // remove Java string return coercions
-
-            //kotlin = kotlin.replacingOccurrences(of: ".javaString", with: "") // string conversions don't need to be explicit
-
-            // e.g., convert java$lang$String to java.lang.String
-            for package in [
-                "java$lang$",
-                "java$io$",
-                "java$util$",
-            ] {
-                let dotsInsteadOfDollars = package.replacingOccurrences(of: "$", with: ".")
-                kotlin = kotlin.replacingOccurrences(of: package, with: dotsInsteadOfDollars)
-            }
-
-            // fixed an issue with the top-level functions:
-            // failed: caught error: "ERROR Modifier 'internal' is not applicable to 'local function' (ScriptingHost54e041a4_Line_0.kts:12:1)"
-            kotlin = kotlin.replacingOccurrences(of: "internal fun ", with: "fun ")
-        }
-        
-        return kotlin
+extension String {
+    public func trimmed() -> String {
+        trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// The total span of this string expressed as an NSRange
+    var span: NSRange {
+        NSRange(startIndex..<endIndex, in: self)
+    }
+
+    public func replacing(expression: NSRegularExpression, options: NSRegularExpression.MatchingOptions = [], captureGroups: [String], replacing: (_ captureGroupName: String, _ captureGroupValue: String) throws -> String?) rethrows -> String {
+        var str = self
+        for match in expression.matches(in: self, options: options, range: self.span).reversed() {
+            for valueName in captureGroups {
+                let textRange = match.range(withName: valueName)
+                if textRange.location == NSNotFound {
+                    continue
+                }
+                let existingValue = (self as NSString).substring(with: textRange)
+
+                //dbg("replacing header range:", match.range, " with bold text:", text)
+                if let newValue = try replacing(valueName, existingValue) {
+                    str = (str as NSString).replacingCharacters(in: match.range, with: newValue)
+                }
+            }
+        }
+        return str
+    }
+}
+
+#if canImport(GryphonLib)
+import GryphonLib
+
+extension Skiff {
     public func transpile(token: String = "} verify: {", autoport: Bool, preamble: Range<Int>?, file: StaticString = #file, line: UInt = #line) throws -> String {
         let code = try String(contentsOf: URL(fileURLWithPath: file.description))
         let lines = code.split(separator: "\n", omittingEmptySubsequences: false).map({ String($0) })
@@ -141,6 +113,70 @@ public struct Skiff {
         return code
     }
 
+
+    public func translate(swift: String, autoport: Bool = false, file: StaticString = #file, line: UInt = #line) throws -> String {
+        var swift = swift
+        // error: Unsupported #if declaration; only `#if GRYPHON`, `#if !GRYPHON` and `#else` are supported (failed to translate SwiftSyntax node).
+        swift = swift.replacingOccurrences(of: "#if canImport(Skiff)", with: "#if GRYPHON")
+
+        // also swap out #if KOTLIN blocks
+        swift = try processKotlinBlock(code: swift)
+
+        //print("### swift:", swift)
+
+        let fileURL = URL(fileURLWithPath: UUID().uuidString, isDirectory: false, relativeTo: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)).appendingPathExtension("swift")
+
+        //#warning("TODO: compile in-memory")
+        try swift.write(to: fileURL, atomically: true, encoding: .utf8)
+
+        // --quiet prevents the translated code from being output to the console
+        // --no-main-file skips wrapping the output in a main fun
+        guard let result = try Driver.performCompilation(withArguments: ["--no-main-file", "--quiet", fileURL.path]) else {
+            throw TranslateError.noResult
+        }
+
+        guard let list = result as? List<Any?> else {
+            throw TranslateError.noInitialResult
+        }
+
+        guard let translation = list.first as? Driver.KotlinTranslation else {
+            throw TranslateError.noInitialTranslationResult
+        }
+
+        var kotlin = translation.kotlinCode
+
+        //print("kotlin:", kotlin.trimmingCharacters(in: .whitespacesAndNewlines))
+
+
+        if autoport {
+            // include #if KOTLIN pre-processor blocks
+
+            // ERROR Type mismatch: inferred type is kotlin.String! but java.lang.String? was expected (ScriptingHost54e041a4_Line_1.kts:1:37)
+            kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "(") // fix unnecessary constructor
+            // kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "kotlin.String(") // fix unnecessary constructor
+            kotlin = kotlin.replacingOccurrences(of: "?.toSwiftString()", with: "") // remove Java string return coercions
+
+            //kotlin = kotlin.replacingOccurrences(of: ".javaString", with: "") // string conversions don't need to be explicit
+
+            // e.g., convert java$lang$String to java.lang.String
+            for package in [
+                "java$lang$",
+                "java$io$",
+                "java$util$",
+            ] {
+                let dotsInsteadOfDollars = package.replacingOccurrences(of: "$", with: ".")
+                kotlin = kotlin.replacingOccurrences(of: package, with: dotsInsteadOfDollars)
+            }
+
+            // fixed an issue with the top-level functions:
+            // failed: caught error: "ERROR Modifier 'internal' is not applicable to 'local function' (ScriptingHost54e041a4_Line_0.kts:12:1)"
+            kotlin = kotlin.replacingOccurrences(of: "internal fun ", with: "fun ")
+        }
+
+        return kotlin
+    }
+
+    #if os(macOS) || os(Linux)
     /// Forks a gradle process for the given projects. Assumes that `gradle` is somewhere in the PATH.
     public func gradle(project projectPath: String, actions: [String]) throws {
         let process = Process()
@@ -218,35 +254,7 @@ public struct Skiff {
         try gradle(project: projectRoot.path, actions: actions)
 
     }
+    #endif
 }
+#endif
 
-
-extension String {
-    public func trimmed() -> String {
-        trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// The total span of this string expressed as an NSRange
-    var span: NSRange {
-        NSRange(startIndex..<endIndex, in: self)
-    }
-
-    public func replacing(expression: NSRegularExpression, options: NSRegularExpression.MatchingOptions = [], captureGroups: [String], replacing: (_ captureGroupName: String, _ captureGroupValue: String) throws -> String?) rethrows -> String {
-        var str = self
-        for match in expression.matches(in: self, options: options, range: self.span).reversed() {
-            for valueName in captureGroups {
-                let textRange = match.range(withName: valueName)
-                if textRange.location == NSNotFound {
-                    continue
-                }
-                let existingValue = (self as NSString).substring(with: textRange)
-
-                //dbg("replacing header range:", match.range, " with bold text:", text)
-                if let newValue = try replacing(valueName, existingValue) {
-                    str = (str as NSString).replacingCharacters(in: match.range, with: newValue)
-                }
-            }
-        }
-        return str
-    }
-}

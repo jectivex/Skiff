@@ -1,8 +1,10 @@
 import XCTest
 @testable import Skiff
+
+#if canImport(GryphonLib)
+import GryphonLib
 import KotlinKanji
 import JavaLib
-import GryphonLib
 import JSum
 
 final class SkiffTests: XCTestCase {
@@ -1086,4 +1088,6 @@ func XCTAssertThrowsErrorAsync<T>(_ asyncExpression: @autoclosure () async throw
         errorHandler(error)
     }
 }
+
+#endif
 
