@@ -8,7 +8,7 @@ on:
         #type: string
 
 env:
-  DEVELOPER_DIR: /Applications/Xcode_14.1.app/Contents/Developer
+  DEVELOPER_DIR: /Applications/Xcode_14.2.app/Contents/Developer
   LINUX_SOURCEKIT_LIB_PATH: /usr/share/swift/usr/lib
   GRADLE_OPTS: "-Xmx512m"
 
@@ -16,7 +16,7 @@ jobs:
   linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Swift Test (Debug)
         run: swift test --configuration debug
       - name: Gradle Test (Debug)
