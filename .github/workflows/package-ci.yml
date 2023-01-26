@@ -2,10 +2,10 @@ name: Package CI
 
 on:
   workflow_call:
-    inputs:
-      package:
-        required: true
-        type: string
+    #inputs:
+      #package:
+        #required: true
+        #type: string
 
 env:
   DEVELOPER_DIR: /Applications/Xcode_14.1.app/Contents/Developer
