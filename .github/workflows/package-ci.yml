@@ -21,7 +21,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
-          script: gradle connectedCheck
+          script: gradle connectedAndroidTest
       - name: Swift Test (Debug)
         run: swift test --configuration debug
       - name: Gradle Test (Debug)
