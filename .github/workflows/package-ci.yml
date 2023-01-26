@@ -12,15 +12,6 @@ env:
   LINUX_SOURCEKIT_LIB_PATH: /usr/share/swift/usr/lib
   GRADLE_OPTS: "-Xmx512m"
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches:
-      - '*'
-  schedule:
-    - cron:  '0 2,14 * * *'
-
 jobs:
   linux:
     runs-on: ubuntu-latest
