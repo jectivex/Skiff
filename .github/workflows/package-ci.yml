@@ -1,0 +1,67 @@
+name: ${{ github.event.repository.name }} Skiff CI
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        required: true
+        type: string
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_14.1.app/Contents/Developer
+  LINUX_SOURCEKIT_LIB_PATH: /usr/share/swift/usr/lib
+  GRADLE_OPTS: "-Xmx512m"
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches:
+      - '*'
+  schedule:
+    - cron:  '0 2,14 * * *'
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Swift Test (Debug)
+        run: swift test --configuration debug
+      - name: Gradle Test (Debug)
+        run: gradle testDebugUnitTest --console plain --rerun-tasks --no-daemon
+      - name: Swift Test (Release)
+        run: swift test --configuration release -Xswiftc -enable-testing
+      - name: Gradle Test (Release)
+        run: gradle testReleaseUnitTest --console plain --rerun-tasks --no-daemon
+      - name: Verify Generated Kotlin Up-to-Date
+        run: git diff --exit-code
+
+  macos:
+    runs-on: macos-12
+    steps:
+      - uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+      - uses: actions/checkout@v2
+      - name: Swift Test (Debug)
+        run: swift test --configuration debug
+      - name: Gradle Test (Debug)
+        run: gradle testDebugUnitTest --console plain --rerun-tasks --no-daemon
+      - name: Swift Test (Release)
+        run: swift test --configuration release -Xswiftc -enable-testing
+      - name: Gradle Test (Release)
+        run: gradle testReleaseUnitTest --console plain --rerun-tasks --no-daemon
+      - name: Verify Generated Kotlin Up-to-Date
+        run: git diff --exit-code
+
+      # Even though we don't use it on iOS, the presence of the Skiff package
+      # causes the SwiftSyntax binary dependency to be downloaded;
+      # this can probably go away once we have 
+      - name: Fix Package.swift for iOS
+        run: mv Package.swift Package.swift.skiff && grep -v 'Skiff' Package.swift.skiff > Package.swift
+
+      - name: iOS Tests (Debug)
+        run: xcodebuild test -configuration Debug -scheme "${{ github.event.repository.name }}" -sdk "iphonesimulator" -destination "platform=iOS Simulator,name=iPhone 14 Pro"
+
