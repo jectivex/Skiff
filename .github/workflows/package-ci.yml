@@ -17,6 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Android Tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          script: gradle test
       - name: Swift Test (Debug)
         run: swift test --configuration debug
       - name: Gradle Test (Debug)
@@ -28,12 +33,6 @@ jobs:
 
       - name: Verify Generated Kotlin Up-to-Date
         run: git diff --exit-code
-
-      - name: Android Tests
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 29
-          script: ./gradlew test
 
   macos:
     runs-on: macos-12
