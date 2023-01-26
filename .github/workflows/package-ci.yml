@@ -25,8 +25,15 @@ jobs:
         run: swift test --configuration release -Xswiftc -enable-testing
       - name: Gradle Test (Release)
         run: gradle testReleaseUnitTest --console plain --rerun-tasks --no-daemon
+
       - name: Verify Generated Kotlin Up-to-Date
         run: git diff --exit-code
+
+      - name: Android Tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          script: ./gradlew test
 
   macos:
     runs-on: macos-12
