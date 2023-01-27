@@ -20,15 +20,15 @@ final class SkiffTests: XCTestCase {
             self.context = try KotlinContext()
         }
 
-        public func transpile(autoport: Bool, preamble: Range<Int>?, file: StaticString = #file, line: UInt = #line) throws -> (source: String, eval: () throws -> (JSum)) {
-            let kotlin = try skiff.transpile(autoport: autoport, preamble: preamble, file: file, line: line)
+        public func transpileInline(autoport: Bool, preamble: Range<Int>?, file: StaticString = #file, line: UInt = #line) throws -> (source: String, eval: () throws -> (JSum)) {
+            let kotlin = try skiff.transpileInline(options: autoport ? [.autoport] : [], preamble: preamble, file: file, line: line)
             return (kotlin, { try self.context.eval(.val(.str(kotlin))).jsum() })
         }
     }
 
     /// Parse the source file for the given Swift code, translate it into Kotlin, interpret it in the embedded ``KotlinContext``, and compare the result to the Swift result.
     @discardableResult func check<T : Equatable>(compile: Bool? = nil, autoport: Bool = false, swift: T, java: T? = nil, kotlin: JSum? = .none, preamble: Range<Int>? = nil, file: StaticString = #file, line: UInt = #line, block: (Bool) async throws -> T, verify: () -> String?) async throws -> JSum? {
-        let (k, jf) = try Self.skiff.get().transpile(autoport: autoport, preamble: preamble, file: file, line: line)
+        let (k, jf) = try Self.skiff.get().transpileInline(autoport: autoport, preamble: preamble, file: file, line: line)
 
         let k1 = (k.hasPrefix("internal val jvm: Boolean = true") ? String(k.dropFirst(32)) : k).trimmed()
         if let expected = verify(), expected.trimmed().isEmpty == false {
@@ -886,7 +886,7 @@ final class SkiffTests: XCTestCase {
 
     
     func compare(swift: String, kotlin: String, file: StaticString = #file, line: UInt = #line) throws {
-        XCTAssertEqual(kotlin.trimmed(), try Skiff().translate(swift: swift, file: file, line: line).trimmed(), file: file, line: line)
+        XCTAssertEqual(kotlin.trimmed(), try Skiff().translate(swift: swift, moduleName: nil, file: file, line: line).trimmed(), file: file, line: line)
     }
 
     /// Run a few simple simple Kotlin snippets and check their output

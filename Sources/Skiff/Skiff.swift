@@ -48,7 +48,7 @@ extension String {
 import GryphonLib
 
 extension Skiff {
-    public func transpile(token: String = "} verify: {", autoport: Bool, preamble: Range<Int>?, file: StaticString = #file, line: UInt = #line) throws -> String {
+    public func transpileInline(token: String = "} verify: {", options: TranslationOptions, preamble: Range<Int>?, file: StaticString = #file, line: UInt = #line) throws -> String {
         let code = try String(contentsOf: URL(fileURLWithPath: file.description))
         let lines = code.split(separator: "\n", omittingEmptySubsequences: false).map({ String($0) })
         let initial = Array(lines[.init(line)...])
@@ -77,7 +77,7 @@ extension Skiff {
         }
         let swift = parts.joined(separator: "\n")
 
-        let kotlin = try translate(swift: swift, autoport: autoport) // + (hasReturn ? "()" : "")
+        let kotlin = try translate(swift: swift, moduleName: nil, options: options) // + (hasReturn ? "()" : "")
         return kotlin
     }
 
@@ -113,8 +113,14 @@ extension Skiff {
         return code
     }
 
+    public struct TranslationOptions : OptionSet {
+        public let rawValue: Int
+        public init(rawValue: Int) { self.rawValue = rawValue }
+        public static let autoport = Self(rawValue: 1<<0)
+        public static let testCase = Self(rawValue: 1<<1)
+    }
 
-    public func translate(swift: String, autoport: Bool = false, file: StaticString = #file, line: UInt = #line) throws -> String {
+    public func translate(swift: String, moduleName: String?, options: TranslationOptions = [], file: StaticString = #file, line: UInt = #line) throws -> String {
         var swift = swift
         // error: Unsupported #if declaration; only `#if GRYPHON`, `#if !GRYPHON` and `#else` are supported (failed to translate SwiftSyntax node).
         swift = swift.replacingOccurrences(of: "#if canImport(Skiff)", with: "#if GRYPHON")
@@ -148,15 +154,19 @@ extension Skiff {
         //print("kotlin:", kotlin.trimmingCharacters(in: .whitespacesAndNewlines))
 
 
-        if autoport {
+        func replace(_ string: String, with replacement: String) {
+            kotlin = kotlin.replacingOccurrences(of: string, with: replacement)
+        }
+
+        if options.contains(.autoport) {
             // include #if KOTLIN pre-processor blocks
 
             // ERROR Type mismatch: inferred type is kotlin.String! but java.lang.String? was expected (ScriptingHost54e041a4_Line_1.kts:1:37)
-            kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "(") // fix unnecessary constructor
-            // kotlin = kotlin.replacingOccurrences(of: "java$lang$String(", with: "kotlin.String(") // fix unnecessary constructor
-            kotlin = kotlin.replacingOccurrences(of: "?.toSwiftString()", with: "") // remove Java string return coercions
+            replace("java$lang$String(", with: "(") // fix unnecessary constructor
+            // replace("java$lang$String(", with: "kotlin.String(") // fix unnecessary constructor
+            replace("?.toSwiftString()", with: "") // remove Java string return coercions
 
-            //kotlin = kotlin.replacingOccurrences(of: ".javaString", with: "") // string conversions don't need to be explicit
+            //replace(".javaString", with: "") // string conversions don't need to be explicit
 
             // e.g., convert java$lang$String to java.lang.String
             for package in [
@@ -165,12 +175,62 @@ extension Skiff {
                 "java$util$",
             ] {
                 let dotsInsteadOfDollars = package.replacingOccurrences(of: "$", with: ".")
-                kotlin = kotlin.replacingOccurrences(of: package, with: dotsInsteadOfDollars)
+                replace(package, with: dotsInsteadOfDollars)
             }
 
             // fixed an issue with the top-level functions:
             // failed: caught error: "ERROR Modifier 'internal' is not applicable to 'local function' (ScriptingHost54e041a4_Line_0.kts:12:1)"
-            kotlin = kotlin.replacingOccurrences(of: "internal fun ", with: "fun ")
+            replace("internal fun ", with: "fun ")
+        }
+
+
+        // convert XCTest to a JUnit test runner
+        if options.contains(.testCase) {
+            // replace common XCTest assertions with their JUnit equivalent
+            replace("XCTAssertEqual", with: "assertEquals")
+            replace("XCTAssertNotEqual", with: "assertNotEquals")
+            replace("XCTAssertTrue", with: "assertTrue")
+            replace("XCTAssertFalse", with: "assertFalse")
+            replace("XCTAssertNil", with: "assertNull")
+            replace("XCTAssertNotNil", with: "assertNotNull")
+            replace("XCTAssertIdentical", with: "assertSame")
+            replace("XCTAssertNotIdentical", with: "assertNotSame")
+
+            // no JUnit equivalent…
+//            replace("XCTAssertGreaterThan", with: "#error")
+//            replace("XCTAssertLessThan", with: "assertLessThan")
+//            replace("XCTAssertLessThanOrEqual", with: "assertLessThanOrEqual")
+//            replace("XCTAssertGreaterThanOrEqual", with: "assertGreaterThanOrEqual")
+
+
+            replace(": XCTestCase {", with: " {")
+            replace("internal fun ", with: "fun ")
+            replace("open fun test", with: "@Test fun test") // any functions prefixed with "test" will get the JUnit @Test annotation
+
+            // add the test runner to the top
+            replace("internal class", with: """
+            @RunWith(org.robolectric.RobolectricTestRunner::class)
+            @org.robolectric.annotation.Config(manifest=org.robolectric.annotation.Config.NONE)
+            internal class
+            """)
+
+            // insert the necessary imports for the test case
+            kotlin = """
+            import org.junit.*
+            import org.junit.Assert.*
+            import org.junit.runner.RunWith
+
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.test.*
+
+            
+            """ + kotlin
+
+            
+        }
+
+        if let moduleName = moduleName {
+            kotlin = "package \(moduleName)\n\n" + kotlin
         }
 
         return kotlin
@@ -220,27 +280,39 @@ extension Skiff {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
 
-        let testFolderName = testBase.lastPathComponent
-        if !testFolderName.hasSuffix("Tests") {
+
+        let sourcesFolderName = "Sources"
+        let testsFolderName = "Tests"
+
+        let fileFolderName = testBase.lastPathComponent
+        if !fileFolderName.hasSuffix(testsFolderName) {
             struct SourceFileExpectedInTestsFolder : Error { }
             throw SourceFileExpectedInTestsFolder()
         }
 
-        let moduleName = String(testFolderName.dropLast(5))
-        //print("### building module:", moduleName)
+        let moduleName = String(fileFolderName.dropLast(5))
+        print("### building module:", moduleName)
 
-        let sourceBase = URL(fileURLWithPath: "Sources", isDirectory: true, relativeTo: projectRoot)
+        for sourceRoot in [sourcesFolderName, testsFolderName] {
+            let isTest = sourceRoot == testsFolderName
+            let sourceBase = URL(fileURLWithPath: sourceRoot, isDirectory: true, relativeTo: projectRoot)
 
-        let sourceURL = URL(fileURLWithPath: "\(moduleName)/\(moduleName).swift", isDirectory: false, relativeTo: sourceBase)
-        //let kotlinURL = URL(fileURLWithPath: "\(moduleName)Kotlin/\(moduleName).kt", isDirectory: false, relativeTo: sourceBase)
-        let kotlinURL = sourceURL.deletingPathExtension().appendingPathExtension("kt")
+            // deep scan for .swift files
+            for sourceURL in (FileManager.default.enumerator(at: sourceBase, includingPropertiesForKeys: [.isDirectoryKey])?.allObjects as? [URL]) ?? [] {
+//            for sourceURL in try FileManager.default.contentsOfDirectory(at: sourceBase, includingPropertiesForKeys: [.isDirectoryKey]) {
 
-        let source = try String(contentsOf: sourceURL)
-        var kotlin = try self.translate(swift: source, autoport: false)
+                if sourceURL.pathExtension != "swift" {
+                    continue // we only look at swift files for transpilation
+                }
+                let kotlinURL = sourceURL.deletingPathExtension().appendingPathExtension("kt")
 
-        kotlin = "package \(moduleName)\n\n" + kotlin
+                let source = try String(contentsOf: sourceURL)
 
-        try kotlin.write(to: kotlinURL, atomically: true, encoding: .utf8)
+                //print("### translating:", sourceURL.path, "to:", kotlinURL.path)
+                let kotlin = try self.translate(swift: source, moduleName: moduleName, options: isTest ? [.testCase] : [])
+                try kotlin.write(to: kotlinURL, atomically: true, encoding: .utf8)
+            }
+        }
 
         var actions: [String] = []
         #if DEBUG
