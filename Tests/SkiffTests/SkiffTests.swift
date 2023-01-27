@@ -884,7 +884,6 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-    
     func compare(swift: String, kotlin: String, file: StaticString = #file, line: UInt = #line) throws {
         XCTAssertEqual(kotlin.trimmed(), try Skiff().translate(swift: swift, moduleName: nil, file: file, line: line).trimmed(), file: file, line: line)
     }

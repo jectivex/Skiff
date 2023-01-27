@@ -158,6 +158,27 @@ extension Skiff {
             kotlin = kotlin.replacingOccurrences(of: string, with: replacement)
         }
 
+//        func replace(re expression: String, with replacement: String) throws {
+//            let regex = try NSRegularExpression(pattern: expression)
+//
+//            for match in regex.matches(in: kotlin, options: [], range: kotlin.span).reversed() {
+//                for valueName in (0...10).map({ String($0) }) {
+//                    let textRange = match.range(withName: valueName)
+//                    if textRange.location == NSNotFound {
+//                        continue
+//                    }
+//                    let existingValue = (kotlin as NSString).substring(with: textRange)
+//
+//                    print("replacing header range:", match.range)
+////                    if let newValue = try replacing(valueName, existingValue) {
+////                        str = (str as NSString).replacingCharacters(in: match.range, with: newValue)
+////                    }
+//                }
+//            }
+//
+//
+//        }
+
         if options.contains(.autoport) {
             // include #if KOTLIN pre-processor blocks
 
@@ -184,17 +205,28 @@ extension Skiff {
         }
 
 
+//        let ifElseBlock = try NSRegularExpression(pattern: "\n *#if \(token) *\n(?<KOTLIN>[^#]*)\n *#else *\n(?<SWIFT>[^#]*)\n *#endif", options: [.dotMatchesLineSeparators])
+//        /// handle `#if KOTLIN … #endif`
+////            let ifBlock = try NSRegularExpression(pattern: "\n *#if \(token) *\n(?<KOTLIN>.*)\n *#endif", options: [.dotMatchesLineSeparators])
+//
+//
+//        code = code
+//            .replacing(expression: ifElseBlock, captureGroups: ["KOTLIN", "SWIFT"], replacing: { paramName, paramValue in
+//                paramName == "KOTLIN" ? "\n" + paramValue : nil
+//            })
+
         // convert XCTest to a JUnit test runner
         if options.contains(.testCase) {
             // replace common XCTest assertions with their JUnit equivalent
-            replace("XCTAssertEqual", with: "assertEquals")
-            replace("XCTAssertNotEqual", with: "assertNotEquals")
-            replace("XCTAssertTrue", with: "assertTrue")
-            replace("XCTAssertFalse", with: "assertFalse")
-            replace("XCTAssertNil", with: "assertNull")
-            replace("XCTAssertNotNil", with: "assertNotNull")
-            replace("XCTAssertIdentical", with: "assertSame")
-            replace("XCTAssertNotIdentical", with: "assertNotSame")
+//            replace("XCTAssertEqual", with: "assertEquals")
+//            replace("XCTAssertNotEqual", with: "assertNotEquals")
+//            replace("XCTAssertTrue", with: "assertTrue")
+//            replace("XCTAssertFalse", with: "assertFalse")
+//            replace("XCTAssertNil", with: "assertNull")
+//            replace("XCTAssertNotNil", with: "assertNotNull")
+//            try replace(re: "XCTAssertIdentical\\((.*), (.*), \"(.*)\"\\)", with: "assertSame($3, $1, $2)") // message param comes first in JUnit.assert*, last in XCTAssert*
+//            replace("XCTAssertIdentical", with: "assertSame")
+//            replace("XCTAssertNotIdentical", with: "assertNotSame")
 
             // no JUnit equivalent…
 //            replace("XCTAssertGreaterThan", with: "#error")
@@ -203,7 +235,30 @@ extension Skiff {
 //            replace("XCTAssertGreaterThanOrEqual", with: "assertGreaterThanOrEqual")
 
 
-            replace(": XCTestCase {", with: " {")
+            let testCaseShims = """
+
+                fun XCTAssertTrue(a: Boolean) = assertTrue(a)
+                fun XCTAssertTrue(a: Boolean, msg: String) = assertTrue(msg, a)
+                fun XCTAssertFalse(a: Boolean) = assertFalse(a)
+                fun XCTAssertFalse(a: Boolean, msg: String) = assertFalse(msg, a)
+                fun XCTAssertNil(a: Any?) = assertNull(a)
+                fun XCTAssertNil(a: Any?, msg: String) = assertNull(msg, a)
+                fun XCTAssertNotNil(a: Any?) = assertNotNull(a)
+                fun XCTAssertNotNil(a: Any?, msg: String) = assertNotNull(msg, a)
+
+                fun XCTAssertEqual(a: Any?, b: Any?) = assertEquals(a, b)
+                fun XCTAssertEqual(a: Any?, b: Any?, msg: String) = assertEquals(msg, a, b)
+                fun XCTAssertNotEqual(a: Any?, b: Any?) = assertNotEquals(a, b)
+                fun XCTAssertNotEqual(a: Any?, b: Any?, msg: String) = assertNotEquals(msg, a, b)
+                fun XCTAssertIdentical(a: Any?, b: Any?) = assertSame(a, b)
+                fun XCTAssertIdentical(a: Any?, b: Any?, msg: String) = assertSame(msg, a, b)
+                fun XCTAssertNotIdentical(a: Any?, b: Any?) = assertNotSame(a, b)
+                fun XCTAssertNotIdentical(a: Any?, b: Any?, msg: String) = assertNotSame(msg, a, b)
+
+
+            """
+
+            replace(": XCTestCase {", with: " {" + testCaseShims)
             replace("internal fun ", with: "fun ")
             replace("open fun test", with: "@Test fun test") // any functions prefixed with "test" will get the JUnit @Test annotation
 
