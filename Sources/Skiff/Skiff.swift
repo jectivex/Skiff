@@ -236,6 +236,7 @@ extension Skiff {
 
 
             let testCaseShims = """
+                //fun XCTUnwrap(a: Any?) = assertNotNull(a)
 
                 fun XCTAssertTrue(a: Boolean) = assertTrue(a)
                 fun XCTAssertTrue(a: Boolean, msg: String) = assertTrue(msg, a)
