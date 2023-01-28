@@ -236,26 +236,39 @@ extension Skiff {
 
 
             let testCaseShims = """
-                //fun XCTUnwrap(a: Any?) = assertNotNull(a)
+                fun XCTUnwrap(a: Any) = { org.junit.Assert.assertNotNull(a); a }
 
-                fun XCTAssertTrue(a: Boolean) = assertTrue(a)
-                fun XCTAssertTrue(a: Boolean, msg: String) = assertTrue(msg, a)
-                fun XCTAssertFalse(a: Boolean) = assertFalse(a)
-                fun XCTAssertFalse(a: Boolean, msg: String) = assertFalse(msg, a)
-                fun XCTAssertNil(a: Any?) = assertNull(a)
-                fun XCTAssertNil(a: Any?, msg: String) = assertNull(msg, a)
-                fun XCTAssertNotNil(a: Any?) = assertNotNull(a)
-                fun XCTAssertNotNil(a: Any?, msg: String) = assertNotNull(msg, a)
+                fun XCTFail() = org.junit.Assert.fail()
+                fun XCTFail(msg: String) = org.junit.Assert.fail(msg)
 
-                fun XCTAssertEqual(a: Any?, b: Any?) = assertEquals(a, b)
-                fun XCTAssertEqual(a: Any?, b: Any?, msg: String) = assertEquals(msg, a, b)
-                fun XCTAssertNotEqual(a: Any?, b: Any?) = assertNotEquals(a, b)
-                fun XCTAssertNotEqual(a: Any?, b: Any?, msg: String) = assertNotEquals(msg, a, b)
-                fun XCTAssertIdentical(a: Any?, b: Any?) = assertSame(a, b)
-                fun XCTAssertIdentical(a: Any?, b: Any?, msg: String) = assertSame(msg, a, b)
-                fun XCTAssertNotIdentical(a: Any?, b: Any?) = assertNotSame(a, b)
-                fun XCTAssertNotIdentical(a: Any?, b: Any?, msg: String) = assertNotSame(msg, a, b)
+                fun XCTAssertTrue(a: Boolean) = org.junit.Assert.assertTrue(a as Boolean)
+                fun XCTAssertTrue(a: Boolean, msg: String) = org.junit.Assert.assertTrue(msg, a)
+                fun XCTAssertFalse(a: Boolean) = org.junit.Assert.assertFalse(a)
+                fun XCTAssertFalse(a: Boolean, msg: String) = org.junit.Assert.assertFalse(msg, a)
 
+                fun XCTAssertNil(a: Any?) = org.junit.Assert.assertNull(a)
+                fun XCTAssertNil(a: Any?, msg: String) = org.junit.Assert.assertNull(msg, a)
+                fun XCTAssertNotNil(a: Any?) = org.junit.Assert.assertNotNull(a)
+                fun XCTAssertNotNil(a: Any?, msg: String) = org.junit.Assert.assertNotNull(msg, a)
+
+                fun XCTAssertEqual(a: Any?, b: Any?) = org.junit.Assert.assertEquals(a, b)
+                fun XCTAssertEqual(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertEquals(msg, a, b)
+                fun XCTAssertEqual(a: Double, b: Double) = org.junit.Assert.assertEquals(a, b)
+                fun XCTAssertEqual(a: Double, b: Double, msg: String) = org.junit.Assert.assertEquals(msg, a, b)
+                fun XCTAssertEqual(a: Long, b: Long) = org.junit.Assert.assertEquals(a, b)
+                fun XCTAssertEqual(a: Long, b: Long, msg: String) = org.junit.Assert.assertEquals(msg, a, b)
+
+                fun XCTAssertNotEqual(a: Any?, b: Any?) = org.junit.Assert.assertNotEquals(a, b)
+                fun XCTAssertNotEqual(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertNotEquals(msg, a, b)
+                fun XCTAssertNotEqual(a: Double, b: Double) = org.junit.Assert.assertNotEquals(a, b)
+                fun XCTAssertNotEqual(a: Double, b: Double, msg: String) = org.junit.Assert.assertNotEquals(msg, a, b)
+                fun XCTAssertNotEqual(a: Long, b: Long) = org.junit.Assert.assertNotEquals(a, b)
+                fun XCTAssertNotEqual(a: Long, b: Long, msg: String) = org.junit.Assert.assertNotEquals(msg, a, b)
+
+                fun XCTAssertIdentical(a: Any?, b: Any?) = org.junit.Assert.assertSame(a, b)
+                fun XCTAssertIdentical(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertSame(msg, a, b)
+                fun XCTAssertNotIdentical(a: Any?, b: Any?) = org.junit.Assert.assertNotSame(a, b)
+                fun XCTAssertNotIdentical(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertNotSame(msg, a, b)
 
             """
 
