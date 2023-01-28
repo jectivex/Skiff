@@ -236,52 +236,59 @@ extension Skiff {
 
 
             let testCaseShims = """
-                fun XCTUnwrap(a: Any) = { org.junit.Assert.assertNotNull(a); a }
 
-                fun XCTFail() = org.junit.Assert.fail()
-                fun XCTFail(msg: String) = org.junit.Assert.fail(msg)
+            // Mimics the API of XCTest for a JUnit test
+            // Behavior difference: JUnit assert* thows an exception, but XCTAssert* just reports the failure and continues
 
-                fun XCTAssertTrue(a: Boolean) = org.junit.Assert.assertTrue(a as Boolean)
-                fun XCTAssertTrue(a: Boolean, msg: String) = org.junit.Assert.assertTrue(msg, a)
-                fun XCTAssertFalse(a: Boolean) = org.junit.Assert.assertFalse(a)
-                fun XCTAssertFalse(a: Boolean, msg: String) = org.junit.Assert.assertFalse(msg, a)
+            internal interface XCTestCase { }
 
-                fun XCTAssertNil(a: Any?) = org.junit.Assert.assertNull(a)
-                fun XCTAssertNil(a: Any?, msg: String) = org.junit.Assert.assertNull(msg, a)
-                fun XCTAssertNotNil(a: Any?) = org.junit.Assert.assertNotNull(a)
-                fun XCTAssertNotNil(a: Any?, msg: String) = org.junit.Assert.assertNotNull(msg, a)
+            internal fun XCTestCase.XCTFail() = org.junit.Assert.fail()
+            internal fun XCTestCase.XCTFail(msg: String) = org.junit.Assert.fail(msg)
 
-                fun XCTAssertIdentical(a: Any?, b: Any?) = org.junit.Assert.assertSame(a, b)
-                fun XCTAssertIdentical(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertSame(msg, a, b)
-                fun XCTAssertNotIdentical(a: Any?, b: Any?) = org.junit.Assert.assertNotSame(a, b)
-                fun XCTAssertNotIdentical(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertNotSame(msg, a, b)
+            internal fun XCTestCase.XCTUnwrap(ob: Any?) = { org.junit.Assert.assertNotNull(ob); ob }
+            internal fun XCTestCase.XCTUnwrap(ob: Any?, msg: String) = { org.junit.Assert.assertNotNull(msg, ob); ob }
+
+            internal fun XCTestCase.XCTAssertTrue(a: Boolean) = org.junit.Assert.assertTrue(a as Boolean)
+            internal fun XCTestCase.XCTAssertTrue(a: Boolean, msg: String) = org.junit.Assert.assertTrue(msg, a)
+            internal fun XCTestCase.XCTAssertFalse(a: Boolean) = org.junit.Assert.assertFalse(a)
+            internal fun XCTestCase.XCTAssertFalse(a: Boolean, msg: String) = org.junit.Assert.assertFalse(msg, a)
+
+            internal fun XCTestCase.XCTAssertNil(a: Any?) = org.junit.Assert.assertNull(a)
+            internal fun XCTestCase.XCTAssertNil(a: Any?, msg: String) = org.junit.Assert.assertNull(msg, a)
+            internal fun XCTestCase.XCTAssertNotNil(a: Any?) = org.junit.Assert.assertNotNull(a)
+            internal fun XCTestCase.XCTAssertNotNil(a: Any?, msg: String) = org.junit.Assert.assertNotNull(msg, a)
+
+            internal fun XCTestCase.XCTAssertIdentical(a: Any?, b: Any?) = org.junit.Assert.assertSame(a, b)
+            internal fun XCTestCase.XCTAssertIdentical(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertSame(msg, a, b)
+            internal fun XCTestCase.XCTAssertNotIdentical(a: Any?, b: Any?) = org.junit.Assert.assertNotSame(a, b)
+            internal fun XCTestCase.XCTAssertNotIdentical(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertNotSame(msg, a, b)
 
 
-                fun XCTAssertEqual(a: Any?, b: Any?) = org.junit.Assert.assertEquals(a, b)
-                fun XCTAssertEqual(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertEquals(msg, a, b)
-                fun XCTAssertEqual(a: Double, b: Double) = org.junit.Assert.assertEquals(a, b)
-                fun XCTAssertEqual(a: Double, b: Double, msg: String) = org.junit.Assert.assertEquals(msg, a, b)
-                fun XCTAssertEqual(a: Float, b: Float) = org.junit.Assert.assertEquals(a, b)
-                fun XCTAssertEqual(a: Float, b: Float, msg: String) = org.junit.Assert.assertEquals(msg, a, b)
-                fun XCTAssertEqual(a: Long, b: Long) = org.junit.Assert.assertEquals(a, b)
-                fun XCTAssertEqual(a: Long, b: Long, msg: String) = org.junit.Assert.assertEquals(msg, a, b)
-                fun XCTAssertEqual(a: Integer, b: Integer) = org.junit.Assert.assertEquals(a, b)
-                fun XCTAssertEqual(a: Integer, b: Integer, msg: String) = org.junit.Assert.assertEquals(msg, a, b)
+            internal fun XCTestCase.XCTAssertEqual(a: Any?, b: Any?) = org.junit.Assert.assertEquals(a, b)
+            internal fun XCTestCase.XCTAssertEqual(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertEquals(msg, a, b)
+            internal fun XCTestCase.XCTAssertEqual(a: Double, b: Double) = org.junit.Assert.assertEquals(a, b)
+            internal fun XCTestCase.XCTAssertEqual(a: Double, b: Double, msg: String) = org.junit.Assert.assertEquals(msg, a, b)
+            internal fun XCTestCase.XCTAssertEqual(a: Float, b: Float) = org.junit.Assert.assertEquals(a, b)
+            internal fun XCTestCase.XCTAssertEqual(a: Float, b: Float, msg: String) = org.junit.Assert.assertEquals(msg, a, b)
+            internal fun XCTestCase.XCTAssertEqual(a: Long, b: Long) = org.junit.Assert.assertEquals(a, b)
+            internal fun XCTestCase.XCTAssertEqual(a: Long, b: Long, msg: String) = org.junit.Assert.assertEquals(msg, a, b)
+            internal fun XCTestCase.XCTAssertEqual(a: Integer, b: Integer) = org.junit.Assert.assertEquals(a, b)
+            internal fun XCTestCase.XCTAssertEqual(a: Integer, b: Integer, msg: String) = org.junit.Assert.assertEquals(msg, a, b)
 
-                fun XCTAssertNotEqual(a: Any?, b: Any?) = org.junit.Assert.assertNotEquals(a, b)
-                fun XCTAssertNotEqual(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertNotEquals(msg, a, b)
-                fun XCTAssertNotEqual(a: Double, b: Double) = org.junit.Assert.assertNotEquals(a, b)
-                fun XCTAssertNotEqual(a: Double, b: Double, msg: String) = org.junit.Assert.assertNotEquals(msg, a, b)
-                fun XCTAssertNotEqual(a: Float, b: Float) = org.junit.Assert.assertNotEquals(a, b)
-                fun XCTAssertNotEqual(a: Float, b: Float, msg: String) = org.junit.Assert.assertNotEquals(msg, a, b)
-                fun XCTAssertNotEqual(a: Long, b: Long) = org.junit.Assert.assertNotEquals(a, b)
-                fun XCTAssertNotEqual(a: Long, b: Long, msg: String) = org.junit.Assert.assertNotEquals(msg, a, b)
-                fun XCTAssertNotEqual(a: Integer, b: Integer) = org.junit.Assert.assertNotEquals(a, b)
-                fun XCTAssertNotEqual(a: Integer, b: Integer, msg: String) = org.junit.Assert.assertNotEquals(msg, a, b)
+            
+            internal fun XCTestCase.XCTAssertNotEqual(a: Any?, b: Any?) = org.junit.Assert.assertNotEquals(a, b)
+            internal fun XCTestCase.XCTAssertNotEqual(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertNotEquals(msg, a, b)
+            internal fun XCTestCase.XCTAssertNotEqual(a: Double, b: Double) = org.junit.Assert.assertNotEquals(a, b)
+            internal fun XCTestCase.XCTAssertNotEqual(a: Double, b: Double, msg: String) = org.junit.Assert.assertNotEquals(msg, a, b)
+            internal fun XCTestCase.XCTAssertNotEqual(a: Float, b: Float) = org.junit.Assert.assertNotEquals(a, b)
+            internal fun XCTestCase.XCTAssertNotEqual(a: Float, b: Float, msg: String) = org.junit.Assert.assertNotEquals(msg, a, b)
+            internal fun XCTestCase.XCTAssertNotEqual(a: Long, b: Long) = org.junit.Assert.assertNotEquals(a, b)
+            internal fun XCTestCase.XCTAssertNotEqual(a: Long, b: Long, msg: String) = org.junit.Assert.assertNotEquals(msg, a, b)
+            internal fun XCTestCase.XCTAssertNotEqual(a: Integer, b: Integer) = org.junit.Assert.assertNotEquals(a, b)
+            internal fun XCTestCase.XCTAssertNotEqual(a: Integer, b: Integer, msg: String) = org.junit.Assert.assertNotEquals(msg, a, b)
 
             """
 
-            replace(": XCTestCase {", with: " {" + testCaseShims)
             replace("internal fun ", with: "fun ")
             replace("open fun test", with: "@Test fun test") // any functions prefixed with "test" will get the JUnit @Test annotation
 
@@ -303,6 +310,8 @@ extension Skiff {
 
             
             """ + kotlin
+            kotlin += "\n\n"
+            kotlin += testCaseShims
 
 //            kotlin = """
 //
