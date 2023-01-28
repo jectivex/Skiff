@@ -86,7 +86,7 @@ final class SkiffTests: XCTestCase {
         """
 
         let kotlin = """
-        internal fun getMessage(): String {
+        fun getMessage(): String {
             return "Hello Skiff!"
         }
 

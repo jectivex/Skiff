@@ -194,58 +194,60 @@ extension Skiff {
             // Mimics the API of XCTest for a JUnit test
             // Behavior difference: JUnit assert* thows an exception, but XCTAssert* just reports the failure and continues
 
-            internal interface XCTestCase { }
+            private interface XCTestCase {
+                fun XCTFail() = Assert.fail()
 
-            internal fun XCTestCase.XCTFail() = org.junit.Assert.fail()
-            internal fun XCTestCase.XCTFail(msg: String) = org.junit.Assert.fail(msg)
+                fun XCTFail(msg: String) = Assert.fail(msg)
 
-            internal fun XCTestCase.XCTUnwrap(ob: Any?) = { org.junit.Assert.assertNotNull(ob); ob }
-            internal fun XCTestCase.XCTUnwrap(ob: Any?, msg: String) = { org.junit.Assert.assertNotNull(msg, ob); ob }
+                fun XCTUnwrap(ob: Any?) = { Assert.assertNotNull(ob); ob }
+                fun XCTUnwrap(ob: Any?, msg: String) = { Assert.assertNotNull(msg, ob); ob }
 
-            internal fun XCTestCase.XCTAssertTrue(a: Boolean) = org.junit.Assert.assertTrue(a as Boolean)
-            internal fun XCTestCase.XCTAssertTrue(a: Boolean, msg: String) = org.junit.Assert.assertTrue(msg, a)
-            internal fun XCTestCase.XCTAssertFalse(a: Boolean) = org.junit.Assert.assertFalse(a)
-            internal fun XCTestCase.XCTAssertFalse(a: Boolean, msg: String) = org.junit.Assert.assertFalse(msg, a)
+                fun XCTAssertTrue(a: Boolean) = Assert.assertTrue(a as Boolean)
+                fun XCTAssertTrue(a: Boolean, msg: String) = Assert.assertTrue(msg, a)
+                fun XCTAssertFalse(a: Boolean) = Assert.assertFalse(a)
+                fun XCTAssertFalse(a: Boolean, msg: String) = Assert.assertFalse(msg, a)
 
-            internal fun XCTestCase.XCTAssertNil(a: Any?) = org.junit.Assert.assertNull(a)
-            internal fun XCTestCase.XCTAssertNil(a: Any?, msg: String) = org.junit.Assert.assertNull(msg, a)
-            internal fun XCTestCase.XCTAssertNotNil(a: Any?) = org.junit.Assert.assertNotNull(a)
-            internal fun XCTestCase.XCTAssertNotNil(a: Any?, msg: String) = org.junit.Assert.assertNotNull(msg, a)
+                fun XCTAssertNil(a: Any?) = Assert.assertNull(a)
+                fun XCTAssertNil(a: Any?, msg: String) = Assert.assertNull(msg, a)
+                fun XCTAssertNotNil(a: Any?) = Assert.assertNotNull(a)
+                fun XCTAssertNotNil(a: Any?, msg: String) = Assert.assertNotNull(msg, a)
 
-            internal fun XCTestCase.XCTAssertIdentical(a: Any?, b: Any?) = org.junit.Assert.assertSame(a, b)
-            internal fun XCTestCase.XCTAssertIdentical(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertSame(msg, a, b)
-            internal fun XCTestCase.XCTAssertNotIdentical(a: Any?, b: Any?) = org.junit.Assert.assertNotSame(a, b)
-            internal fun XCTestCase.XCTAssertNotIdentical(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertNotSame(msg, a, b)
+                fun XCTAssertIdentical(a: Any?, b: Any?) = Assert.assertSame(a, b)
+                fun XCTAssertIdentical(a: Any?, b: Any?, msg: String) = Assert.assertSame(msg, a, b)
+                fun XCTAssertNotIdentical(a: Any?, b: Any?) = Assert.assertNotSame(a, b)
+                fun XCTAssertNotIdentical(a: Any?, b: Any?, msg: String) = Assert.assertNotSame(msg, a, b)
 
-            internal fun XCTestCase.XCTAssertEqual(a: Any?, b: Any?) = org.junit.Assert.assertEquals(a, b)
-            internal fun XCTestCase.XCTAssertEqual(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertEquals(msg, a, b)
-            internal fun XCTestCase.XCTAssertNotEqual(a: Any?, b: Any?) = org.junit.Assert.assertNotEquals(a, b)
-            internal fun XCTestCase.XCTAssertNotEqual(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertNotEquals(msg, a, b)
+                fun XCTAssertEqual(a: Any?, b: Any?) = Assert.assertEquals(a, b)
+                fun XCTAssertEqual(a: Any?, b: Any?, msg: String) = Assert.assertEquals(msg, a, b)
+                fun XCTAssertNotEqual(a: Any?, b: Any?) = Assert.assertNotEquals(a, b)
+                fun XCTAssertNotEqual(a: Any?, b: Any?, msg: String) = Assert.assertNotEquals(msg, a, b)
 
-            // additional overloads needed for XCTAssert*() which have different signatures on Linux (@autoclosures) than on Darwin platforms (direct values)
+                // additional overloads needed for XCTAssert*() which have different signatures on Linux (@autoclosures) than on Darwin platforms (direct values)
 
-            internal fun XCTestCase.XCTUnwrap(ob: () -> Any?) = { val x = ob(); org.junit.Assert.assertNotNull(x); x }
-            internal fun XCTestCase.XCTUnwrap(ob: () -> Any?, msg: () -> String) = { val x = ob(); org.junit.Assert.assertNotNull(msg(), x); x }
+                fun XCTUnwrap(ob: () -> Any?) = { val x = ob(); Assert.assertNotNull(x); x }
+                fun XCTUnwrap(ob: () -> Any?, msg: () -> String) = { val x = ob(); Assert.assertNotNull(msg(), x); x }
 
-            internal fun XCTestCase.XCTAssertTrue(a: () -> Boolean) = org.junit.Assert.assertTrue(a())
-            internal fun XCTestCase.XCTAssertTrue(a: () -> Boolean, msg: () -> String) = org.junit.Assert.assertTrue(msg(), a())
-            internal fun XCTestCase.XCTAssertFalse(a: () -> Boolean) = org.junit.Assert.assertFalse(a())
-            internal fun XCTestCase.XCTAssertFalse(a: () -> Boolean, msg: () -> String) = org.junit.Assert.assertFalse(msg(), a())
+                fun XCTAssertTrue(a: () -> Boolean) = Assert.assertTrue(a())
+                fun XCTAssertTrue(a: () -> Boolean, msg: () -> String) = Assert.assertTrue(msg(), a())
+                fun XCTAssertFalse(a: () -> Boolean) = Assert.assertFalse(a())
+                fun XCTAssertFalse(a: () -> Boolean, msg: () -> String) = Assert.assertFalse(msg(), a())
 
-            internal fun XCTestCase.XCTAssertNil(a: () -> Any?) = org.junit.Assert.assertNull(a())
-            internal fun XCTestCase.XCTAssertNil(a: () -> Any?, msg: () -> String) = org.junit.Assert.assertNull(msg(), a())
-            internal fun XCTestCase.XCTAssertNotNil(a: () -> Any?) = org.junit.Assert.assertNotNull(a())
-            internal fun XCTestCase.XCTAssertNotNil(a: () -> Any?, msg: () -> String) = org.junit.Assert.assertNotNull(msg(), a())
+                fun XCTAssertNil(a: () -> Any?) = Assert.assertNull(a())
+                fun XCTAssertNil(a: () -> Any?, msg: () -> String) = Assert.assertNull(msg(), a())
+                fun XCTAssertNotNil(a: () -> Any?) = Assert.assertNotNull(a())
+                fun XCTAssertNotNil(a: () -> Any?, msg: () -> String) = Assert.assertNotNull(msg(), a())
 
-            internal fun XCTestCase.XCTAssertIdentical(a: () -> Any?, b: () -> Any?) = org.junit.Assert.assertSame(a(), b())
-            internal fun XCTestCase.XCTAssertIdentical(a: () -> Any?, b: () -> Any?, msg: () -> String) = org.junit.Assert.assertSame(msg(), a(), b())
-            internal fun XCTestCase.XCTAssertNotIdentical(a: () -> Any?, b: () -> Any?) = org.junit.Assert.assertNotSame(a(), b())
-            internal fun XCTestCase.XCTAssertNotIdentical(a: () -> Any?, b: () -> Any?, msg: () -> String) = org.junit.Assert.assertNotSame(msg(), a(), b())
+                fun XCTAssertIdentical(a: () -> Any?, b: () -> Any?) = Assert.assertSame(a(), b())
+                fun XCTAssertIdentical(a: () -> Any?, b: () -> Any?, msg: () -> String) = Assert.assertSame(msg(), a(), b())
+                fun XCTAssertNotIdentical(a: () -> Any?, b: () -> Any?) = Assert.assertNotSame(a(), b())
+                fun XCTAssertNotIdentical(a: () -> Any?, b: () -> Any?, msg: () -> String) = Assert.assertNotSame(msg(), a(), b())
 
-            internal fun XCTestCase.XCTAssertEqual(a: () -> Any?, b: () -> Any?) = org.junit.Assert.assertEquals(a(), b())
-            internal fun XCTestCase.XCTAssertEqual(a: () -> Any?, b: () -> Any?, msg: () -> String) = org.junit.Assert.assertEquals(msg(), a(), b())
-            internal fun XCTestCase.XCTAssertNotEqual(a: () -> Any?, b: () -> Any?) = org.junit.Assert.assertNotEquals(a(), b())
-            internal fun XCTestCase.XCTAssertNotEqual(a: () -> Any?, b: () -> Any?, msg: () -> String) = org.junit.Assert.assertNotEquals(msg(), a(), b())
+                fun XCTAssertEqual(a: () -> Any?, b: () -> Any?) = Assert.assertEquals(a(), b())
+                fun XCTAssertEqual(a: () -> Any?, b: () -> Any?, msg: () -> String) = Assert.assertEquals(msg(), a(), b())
+                fun XCTAssertNotEqual(a: () -> Any?, b: () -> Any?) = Assert.assertNotEquals(a(), b())
+                fun XCTAssertNotEqual(a: () -> Any?, b: () -> Any?, msg: () -> String) = Assert.assertNotEquals(msg(), a(), b())
+            }
+
 
             """
 
@@ -254,22 +256,19 @@ extension Skiff {
 
             // add the test runner to the top
             replace("internal class", with: """
-            @RunWith(org.robolectric.RobolectricTestRunner::class)
-            @org.robolectric.annotation.Config(manifest=org.robolectric.annotation.Config.NONE)
-            internal class
-            """)
-
-            // insert the necessary imports for the test case
-            kotlin = """
-            import org.junit.*
-            import org.junit.Assert.*
+            import kotlin.test.*
+            import org.junit.Test
+            import org.junit.Assert
             import org.junit.runner.RunWith
 
             import kotlinx.coroutines.*
             import kotlinx.coroutines.test.*
 
-            
-            """ + kotlin
+            @RunWith(org.robolectric.RobolectricTestRunner::class)
+            @org.robolectric.annotation.Config(manifest=org.robolectric.annotation.Config.NONE)
+            internal class
+            """)
+
             kotlin += "\n\n"
             kotlin += testCaseShims
         }
