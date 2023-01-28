@@ -16,6 +16,10 @@ jobs:
   linux:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '11'
       - run: gradle --version
       - uses: actions/checkout@v3
       - name: Swift Test (Debug)
@@ -37,7 +41,6 @@ jobs:
   macos:
     runs-on: macos-12
     steps:
-      - run: gradle --version
       - uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
