@@ -51,14 +51,17 @@ jobs:
       - uses: actions/checkout@v3
       - name: Swift Test (Debug)
         run: swift test --configuration debug
-      - name: Verify Generated Kotlin Up-to-Date
-        run: git diff --exit-code
       - name: Gradle Test (Debug)
         run: gradle testDebugUnitTest --console plain --rerun-tasks --no-daemon
       - name: Swift Test (Release)
         run: swift test --configuration release -Xswiftc -enable-testing
       - name: Gradle Test (Release)
         run: gradle testReleaseUnitTest --console plain --rerun-tasks --no-daemon
+
+      # Make sure the transpiled code is the same as what is checked in.
+      - name: Verify Generated Kotlin Up-to-Date
+        run: git diff --exit-code
+
       # Even though we don't use it on iOS, the presence of the Skiff package
       # causes the SwiftSyntax binary dependency to be downloaded;
       # this can probably go away once we have 
