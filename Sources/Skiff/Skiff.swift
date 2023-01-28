@@ -311,7 +311,8 @@ extension Skiff {
         args += [
             //"--no-daemon",
             "--console", "plain",
-            //"--info",
+            "--info",
+            "--stacktrace",
             "--rerun-tasks", // re-run tests
             "--project-dir", projectPath,
         ]

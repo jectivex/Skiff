@@ -22,7 +22,7 @@ jobs:
       - name: Verify Generated Kotlin Up-to-Date
         run: git diff --exit-code
       - name: Gradle Test (Debug)
-        run: gradle testDebugUnitTest --console plain --rerun-tasks --no-daemon --stacktrace --info
+        run: gradle testDebugUnitTest --console plain --rerun-tasks --no-daemon
       - name: Swift Test (Release)
         run: swift test --configuration release -Xswiftc -enable-testing
       - name: Gradle Test (Release)
