@@ -46,7 +46,7 @@ jobs:
           distribution: 'temurin'
           java-version: '11'
       - run: gradle --version
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Swift Test (Debug)
         run: swift test --configuration debug
       - name: Verify Generated Kotlin Up-to-Date
