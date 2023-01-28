@@ -795,8 +795,8 @@ final class SkiffTests: XCTestCase {
         } verify: {
         """
         internal sealed class Pet {
-            class Cat: Pet()
-            class Other(val name: String): Pet()
+            class cat: Pet()
+            class other(val name: String): Pet()
         }
 
         true
