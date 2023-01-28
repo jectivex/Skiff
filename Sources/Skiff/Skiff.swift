@@ -158,26 +158,12 @@ extension Skiff {
             kotlin = kotlin.replacingOccurrences(of: string, with: replacement)
         }
 
-//        func replace(re expression: String, with replacement: String) throws {
-//            let regex = try NSRegularExpression(pattern: expression)
-//
-//            for match in regex.matches(in: kotlin, options: [], range: kotlin.span).reversed() {
-//                for valueName in (0...10).map({ String($0) }) {
-//                    let textRange = match.range(withName: valueName)
-//                    if textRange.location == NSNotFound {
-//                        continue
-//                    }
-//                    let existingValue = (kotlin as NSString).substring(with: textRange)
-//
-//                    print("replacing header range:", match.range)
-////                    if let newValue = try replacing(valueName, existingValue) {
-////                        str = (str as NSString).replacingCharacters(in: match.range, with: newValue)
-////                    }
-//                }
-//            }
-//
-//
-//        }
+        // fixed an issue with the top-level functions:
+        // failed: caught error: "ERROR Modifier 'internal' is not applicable to 'local function' (ScriptingHost54e041a4_Line_0.kts:12:1)"
+        replace("internal fun ", with: "fun ")
+
+        // replace("convenience constructor", with: "constructor") // Gryphon bug // construtor delegation doesn't work
+
 
         if options.contains(.autoport) {
             // include #if KOTLIN pre-processor blocks
@@ -198,43 +184,11 @@ extension Skiff {
                 let dotsInsteadOfDollars = package.replacingOccurrences(of: "$", with: ".")
                 replace(package, with: dotsInsteadOfDollars)
             }
-
-            // fixed an issue with the top-level functions:
-            // failed: caught error: "ERROR Modifier 'internal' is not applicable to 'local function' (ScriptingHost54e041a4_Line_0.kts:12:1)"
-            replace("internal fun ", with: "fun ")
         }
-
-
-//        let ifElseBlock = try NSRegularExpression(pattern: "\n *#if \(token) *\n(?<KOTLIN>[^#]*)\n *#else *\n(?<SWIFT>[^#]*)\n *#endif", options: [.dotMatchesLineSeparators])
-//        /// handle `#if KOTLIN … #endif`
-////            let ifBlock = try NSRegularExpression(pattern: "\n *#if \(token) *\n(?<KOTLIN>.*)\n *#endif", options: [.dotMatchesLineSeparators])
-//
-//
-//        code = code
-//            .replacing(expression: ifElseBlock, captureGroups: ["KOTLIN", "SWIFT"], replacing: { paramName, paramValue in
-//                paramName == "KOTLIN" ? "\n" + paramValue : nil
-//            })
 
         // convert XCTest to a JUnit test runner
         if options.contains(.testCase) {
             // replace common XCTest assertions with their JUnit equivalent
-//            replace("XCTAssertEqual", with: "assertEquals")
-//            replace("XCTAssertNotEqual", with: "assertNotEquals")
-//            replace("XCTAssertTrue", with: "assertTrue")
-//            replace("XCTAssertFalse", with: "assertFalse")
-//            replace("XCTAssertNil", with: "assertNull")
-//            replace("XCTAssertNotNil", with: "assertNotNull")
-//            try replace(re: "XCTAssertIdentical\\((.*), (.*), \"(.*)\"\\)", with: "assertSame($3, $1, $2)") // message param comes first in JUnit.assert*, last in XCTAssert*
-//            replace("XCTAssertIdentical", with: "assertSame")
-//            replace("XCTAssertNotIdentical", with: "assertNotSame")
-
-            // no JUnit equivalent…
-//            replace("XCTAssertGreaterThan", with: "#error")
-//            replace("XCTAssertLessThan", with: "assertLessThan")
-//            replace("XCTAssertLessThanOrEqual", with: "assertLessThanOrEqual")
-//            replace("XCTAssertGreaterThanOrEqual", with: "assertGreaterThanOrEqual")
-
-
             let testCaseShims = """
 
             // Mimics the API of XCTest for a JUnit test
@@ -263,8 +217,12 @@ extension Skiff {
             internal fun XCTestCase.XCTAssertNotIdentical(a: Any?, b: Any?) = org.junit.Assert.assertNotSame(a, b)
             internal fun XCTestCase.XCTAssertNotIdentical(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertNotSame(msg, a, b)
 
+            internal fun XCTestCase.XCTAssertEqual(a: Any?, b: Any?) = org.junit.Assert.assertEquals(a, b)
+            internal fun XCTestCase.XCTAssertEqual(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertEquals(msg, a, b)
+            internal fun XCTestCase.XCTAssertNotEqual(a: Any?, b: Any?) = org.junit.Assert.assertNotEquals(a, b)
+            internal fun XCTestCase.XCTAssertNotEqual(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertNotEquals(msg, a, b)
 
-            // additional overloads needed for XCTAssert* overloads on Linux, which have a different signature than on Darwin platforms
+            // additional overloads needed for XCTAssert*() which have different signatures on Linux (@autoclosures) than on Darwin platforms (direct values)
 
             internal fun XCTestCase.XCTUnwrap(ob: () -> Any?) = { val x = ob(); org.junit.Assert.assertNotNull(x); x }
             internal fun XCTestCase.XCTUnwrap(ob: () -> Any?, msg: () -> String) = { val x = ob(); org.junit.Assert.assertNotNull(msg(), x); x }
@@ -273,11 +231,6 @@ extension Skiff {
             internal fun XCTestCase.XCTAssertTrue(a: () -> Boolean, msg: () -> String) = org.junit.Assert.assertTrue(msg(), a())
             internal fun XCTestCase.XCTAssertFalse(a: () -> Boolean) = org.junit.Assert.assertFalse(a())
             internal fun XCTestCase.XCTAssertFalse(a: () -> Boolean, msg: () -> String) = org.junit.Assert.assertFalse(msg(), a())
-
-            internal fun XCTestCase.XCTAssertEqual(a: Any?, b: Any?) = org.junit.Assert.assertEquals(a, b)
-            internal fun XCTestCase.XCTAssertEqual(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertEquals(msg, a, b)
-            internal fun XCTestCase.XCTAssertNotEqual(a: Any?, b: Any?) = org.junit.Assert.assertNotEquals(a, b)
-            internal fun XCTestCase.XCTAssertNotEqual(a: Any?, b: Any?, msg: String) = org.junit.Assert.assertNotEquals(msg, a, b)
 
             internal fun XCTestCase.XCTAssertNil(a: () -> Any?) = org.junit.Assert.assertNull(a())
             internal fun XCTestCase.XCTAssertNil(a: () -> Any?, msg: () -> String) = org.junit.Assert.assertNull(msg(), a())
@@ -319,12 +272,6 @@ extension Skiff {
             """ + kotlin
             kotlin += "\n\n"
             kotlin += testCaseShims
-
-//            kotlin = """
-//
-//            import CrossFoundation.*
-//            
-//            """ + kotlin
         }
 
         if let moduleName = moduleName {
