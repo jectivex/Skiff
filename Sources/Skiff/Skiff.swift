@@ -164,6 +164,9 @@ extension Skiff {
 
         // replace("convenience constructor", with: "constructor") // Gryphon bug // construtor delegation doesn't work
 
+        replace(": RawRepresentable()", with: "")
+        replace("@JvmInline\n\ndata class", with: "@JvmInline value class")
+
 
         if options.contains(.autoport) {
             // include #if KOTLIN pre-processor blocks
@@ -295,7 +298,7 @@ extension Skiff {
         args += [
             //"--no-daemon",
             "--console", "plain",
-            //"--info",
+            "--info",
             //"--stacktrace",
             "--rerun-tasks", // re-run tests
             "--project-dir", projectPath,
