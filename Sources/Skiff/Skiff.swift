@@ -280,6 +280,15 @@ extension Skiff {
             kotlin = "package \(moduleName)\n\n" + kotlin
         }
 
+        let preamble = """
+        // =========================================
+        // GENERATED FILE; EDITS WILL BE OVERWRITTEN
+        // =========================================
+
+        """
+
+        kotlin = preamble + kotlin
+
         return kotlin
     }
 
