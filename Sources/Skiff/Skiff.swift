@@ -277,17 +277,15 @@ extension Skiff {
         }
 
         if let moduleName = moduleName {
-            kotlin = "package \(moduleName)\n\n" + kotlin
+            kotlin = """
+            // =========================================
+            // GENERATED FILE; EDITS WILL BE OVERWRITTEN
+            // =========================================
+            package \(moduleName)
+
+            """ + kotlin
         }
 
-        let preamble = """
-        // =========================================
-        // GENERATED FILE; EDITS WILL BE OVERWRITTEN
-        // =========================================
-
-        """
-
-        kotlin = preamble + kotlin
 
         return kotlin
     }
