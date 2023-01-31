@@ -67,6 +67,7 @@ final class SkiffTests: XCTestCase {
         try compareSymbols(swift: """
         import Foundation
 
+        /// Doc comments are matched to their types
         struct Basic : Equatable {
             let int: Int? = nil
             let str: String = "abc"
@@ -78,6 +79,12 @@ final class SkiffTests: XCTestCase {
             let dbl2 = 1.1
 
             let nul = NSNull()
+
+            let nestedStruct = NestedStruct()
+
+            struct NestedStruct : Hashable, Codable {
+                var nestedField: String?
+            }
         }
         """) { graph in
             let allSymbols = graph.symbols.values
@@ -89,6 +96,12 @@ final class SkiffTests: XCTestCase {
 
             XCTAssertEqual(symbolsInOrder.map(\.pathComponents), [
                 ["Basic"],
+                ["Basic", "NestedStruct"],
+                ["Basic", "NestedStruct", "init(nestedField:)"],
+                ["Basic", "NestedStruct", "nestedField"],
+                ["Basic", "NestedStruct", "init(from:)"],
+                ["Basic", "NestedStruct", "init()"],
+                ["Basic", "nestedStruct"],
                 ["Basic", "init(dbl:)"],
                 ["Basic", "dbl"],
                 ["Basic", "int"],
@@ -98,11 +111,30 @@ final class SkiffTests: XCTestCase {
                 ["Basic", "int2"],
                 ["Basic", "str2"],
                 ["Basic", "!=(_:_:)"],
+                ["Basic", "NestedStruct", "!=(_:_:)"],
             ])
 
-            let sym = { name in try XCTUnwrap(allSymbols.first(where: { $0.pathComponents == ["Basic", name] })) }
 
-            let dbl = try sym("dbl")
+            let basic = try XCTUnwrap(allSymbols.first(where: { $0.pathComponents == ["Basic"] }))
+            XCTAssertEqual(.struct, basic.kind.identifier)
+            XCTAssertEqual(.init(rawValue: "internal"), basic.accessLevel)
+            XCTAssertEqual(nil, basic.type)
+            XCTAssertEqual("Basic", basic.names.subHeading?.last?.spelling)
+            XCTAssertEqual("Doc comments are matched to their types", basic.docComment?.lines.first?.text)
+            XCTAssertEqual(2, basic.docComment?.lines.first?.range?.start.line)
+
+            let location = try XCTUnwrap(basic.mixins["location"] as? SymbolGraph.Symbol.Location)
+            XCTAssertEqual(3, location.position.line)
+
+            let declarationFragments = try XCTUnwrap(basic.mixins["declarationFragments"] as? SymbolKit.SymbolGraph.Symbol.DeclarationFragments)
+            XCTAssertEqual("Basic", declarationFragments.declarationFragments.last?.spelling)
+
+            dump(basic, name: "basic")
+
+
+            let symFromName = { name in try XCTUnwrap(allSymbols.first(where: { $0.pathComponents == ["Basic", name] })) }
+
+            let dbl = try symFromName("dbl")
             XCTAssertEqual(.property, dbl.kind.identifier)
             XCTAssertEqual(.init(rawValue: "internal"), dbl.accessLevel)
             XCTAssertEqual(nil, dbl.type) // we'd like "Double" here…
@@ -110,7 +142,7 @@ final class SkiffTests: XCTestCase {
             XCTAssertEqual("a double property", dbl.docComment?.lines.first?.text)
             dump(dbl, name: "dbl")
 
-            let int = try sym("int")
+            let int = try symFromName("int")
             XCTAssertEqual(.property, int.kind.identifier)
             XCTAssertEqual(.init(rawValue: "internal"), int.accessLevel)
             XCTAssertEqual(nil, int.type)
@@ -121,7 +153,7 @@ final class SkiffTests: XCTestCase {
 
             dump(int, name: "int")
 
-            let dbl2 = try sym("dbl2")
+            let dbl2 = try symFromName("dbl2")
             XCTAssertEqual(.property, dbl2.kind.identifier)
             XCTAssertEqual(.init(rawValue: "internal"), dbl2.accessLevel)
             XCTAssertEqual(nil, dbl2.type)
@@ -217,7 +249,7 @@ final class SkiffTests: XCTestCase {
             //               - some: "s:Sd"
 
 
-            let nul = try sym("nul")
+            let nul = try symFromName("nul")
             XCTAssertEqual(.property, nul.kind.identifier)
             XCTAssertEqual(.init(rawValue: "internal"), nul.accessLevel)
             XCTAssertEqual(nil, nul.type)
@@ -317,14 +349,22 @@ final class SkiffTests: XCTestCase {
             //             - some: "c:objc(cs)NSNull"
 
 
-            XCTAssertEqual("Int", try sym("int2").names.subHeading?.last?.spelling)
-            XCTAssertEqual("s:Si", try sym("int2").names.subHeading?.last?.preciseIdentifier)
+            let nested = try symFromName("nestedStruct")
+            XCTAssertEqual(.property, nested.kind.identifier)
+            XCTAssertEqual(.init(rawValue: "internal"), nested.accessLevel)
+            XCTAssertEqual(nil, nested.type)
+            XCTAssertEqual("NestedStruct", nested.names.subHeading?.last?.spelling)
+            XCTAssertEqual("s:6source5BasicV12NestedStructV", nested.names.subHeading?.last?.preciseIdentifier)
+            dump(nested, name: "nested")
 
-            XCTAssertEqual("String", try sym("str").names.subHeading?.last?.spelling)
-            XCTAssertEqual("s:SS", try sym("str").names.subHeading?.last?.preciseIdentifier)
+            XCTAssertEqual("Int", try symFromName("int2").names.subHeading?.last?.spelling)
+            XCTAssertEqual("s:Si", try symFromName("int2").names.subHeading?.last?.preciseIdentifier)
 
-            XCTAssertEqual("String", try sym("str2").names.subHeading?.last?.spelling)
-            XCTAssertEqual("s:SS", try sym("str2").names.subHeading?.last?.preciseIdentifier)
+            XCTAssertEqual("String", try symFromName("str").names.subHeading?.last?.spelling)
+            XCTAssertEqual("s:SS", try symFromName("str").names.subHeading?.last?.preciseIdentifier)
+
+            XCTAssertEqual("String", try symFromName("str2").names.subHeading?.last?.spelling)
+            XCTAssertEqual("s:SS", try symFromName("str2").names.subHeading?.last?.preciseIdentifier)
         }
     }
 
@@ -1222,7 +1262,7 @@ final class SkiffTests: XCTestCase {
         graph.module.platform = .init()
         var sym2 = try graph.json(outputFormatting: [.prettyPrinted, .withoutEscapingSlashes]).utf8String ?? ""
         sym2 = sym2.replacingOccurrences(of: tmpdir.absoluteString, with: "") // strip the tmp URLs
-        print("### generated symbols", sym2)
+        //print("### generated symbols", sym2)
         if let sym = try symbols() {
             // SymbolGraph is not equatable, so the best we can do is compare the encoded JSON
             let sym1 = try sym.json(outputFormatting: [.prettyPrinted, .withoutEscapingSlashes]).utf8String ?? ""
@@ -1254,7 +1294,8 @@ final class SkiffTests: XCTestCase {
 
 
 extension SymbolGraph {
-    static let standard: SymbolGraph = SymbolGraph(metadata: SymbolGraph.Metadata(formatVersion: SymbolGraph.SemanticVersion(major: 0, minor: 0, patch: 0, prerelease: nil, buildMetadata: nil), generator: "skiff"), module: SymbolGraph.Module(name: "source", platform: .init(architecture: nil, vendor: nil, operatingSystem: nil, environment: nil), version: nil, bystanders: nil, isVirtual: false), symbols: [], relationships: [])
+    /// An empty graph for testing
+    fileprivate static let empty: SymbolGraph = SymbolGraph(metadata: SymbolGraph.Metadata(formatVersion: SymbolGraph.SemanticVersion(major: 0, minor: 0, patch: 0, prerelease: nil, buildMetadata: nil), generator: "skiff"), module: SymbolGraph.Module(name: "source", platform: .init(architecture: nil, vendor: nil, operatingSystem: nil, environment: nil), version: nil, bystanders: nil, isVirtual: false), symbols: [], relationships: [])
 }
 
 // MARK: FileSystemModuleBlock
