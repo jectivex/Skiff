@@ -1,4 +1,5 @@
 import XCTest
+import SymbolKit
 @testable import Skiff
 
 #if canImport(GryphonLib)
@@ -20,15 +21,19 @@ final class SkiffTests: XCTestCase {
             self.context = try KotlinContext()
         }
 
-        public func transpileInline(autoport: Bool, preamble: Range<Int>?, file: StaticString = #file, line: UInt = #line) throws -> (source: String, eval: () throws -> (JSum)) {
-            let kotlin = try skiff.transpileInline(options: autoport ? [.autoport] : [], preamble: preamble, file: file, line: line)
-            return (kotlin, { try self.context.eval(.val(.str(kotlin))).jsum() })
+        public func transpileInline(autoport: Bool, preamble: Range<Int>?, file: StaticString = #file, line: UInt = #line) throws -> (swift: String, kotlin: String, eval: () throws -> (JSum)) {
+            let source = try skiff.transpileInline(options: autoport ? [.autoport] : [], preamble: preamble, file: file, line: line)
+            return (source.swift, source.kotlin, { try self.context.eval(.val(.str(source.kotlin))).jsum() })
         }
     }
 
     /// Parse the source file for the given Swift code, translate it into Kotlin, interpret it in the embedded ``KotlinContext``, and compare the result to the Swift result.
-    @discardableResult func check<T : Equatable>(compile: Bool? = nil, autoport: Bool = false, swift: T, java: T? = nil, kotlin: JSum? = .none, preamble: Range<Int>? = nil, file: StaticString = #file, line: UInt = #line, block: (Bool) async throws -> T, verify: () -> String?) async throws -> JSum? {
-        let (k, jf) = try Self.skiff.get().transpileInline(autoport: autoport, preamble: preamble, file: file, line: line)
+    @discardableResult func check<T : Equatable>(compile: Bool? = nil, autoport: Bool = false, swift: T, java: T? = nil, kotlin: JSum? = .none, preamble: Range<Int>? = nil, file: StaticString = #file, line: UInt = #line, block: (Bool) async throws -> T, verify: () -> String?, symbols: () -> SymbolGraph? = { nil }) async throws -> JSum? {
+        let (s, k, jf) = try Self.skiff.get().transpileInline(autoport: autoport, preamble: preamble, file: file, line: line)
+
+        if let symbols = symbols() {
+            try compareSymbols(swift: s, symbols: symbols, file: file, line: line)
+        }
 
         let k1 = (k.hasPrefix("internal val jvm: Boolean = true") ? String(k.dropFirst(32)) : k).trimmed()
         if let expected = verify(), expected.trimmed().isEmpty == false {
@@ -58,11 +63,162 @@ final class SkiffTests: XCTestCase {
         }
     }
 
+    func testSymbolKit() throws {
+        let bareEnum = try SymbolGraph(json: """
+        {
+          "metadata" : {
+            "generator" : "skiff",
+            "formatVersion" : {
+              "major" : 0,
+              "minor" : 0,
+              "patch" : 0
+            }
+          },
+          "relationships" : [
+            {
+              "kind" : "conformsTo",
+              "source" : "s:6source1AO",
+              "target" : "s:s8SendableP",
+              "targetFallback" : "Swift.Sendable"
+            }
+          ],
+          "symbols" : [
+            {
+              "location" : {
+                "uri" : "source.swift",
+                "position" : {
+                  "line" : 0,
+                  "character" : 5
+                }
+              },
+              "declarationFragments" : [
+                {
+                  "kind" : "keyword",
+                  "spelling" : "enum"
+                },
+                {
+                  "kind" : "text",
+                  "spelling" : " "
+                },
+                {
+                  "kind" : "identifier",
+                  "spelling" : "A"
+                }
+              ],
+              "identifier" : {
+                "precise" : "s:6source1AO",
+                "interfaceLanguage" : "swift"
+              },
+              "kind" : {
+                "displayName" : "Enumeration",
+                "identifier" : "enum"
+              },
+              "accessLevel" : "internal",
+              "pathComponents" : [
+                "A"
+              ],
+              "names" : {
+                "title" : "A",
+                "navigator" : [
+                  {
+                    "kind" : "identifier",
+                    "spelling" : "A"
+                  }
+                ],
+                "subHeading" : [
+                  {
+                    "kind" : "keyword",
+                    "spelling" : "enum"
+                  },
+                  {
+                    "kind" : "text",
+                    "spelling" : " "
+                  },
+                  {
+                    "kind" : "identifier",
+                    "spelling" : "A"
+                  }
+                ]
+              }
+            }
+          ],
+          "module" : {
+            "name" : "source",
+            "platform" : {
+
+            },
+            "isVirtual" : false
+          }
+        }
+        """.utf8Data)
+
+        try compareSymbols(swift: "enum A { }", symbols: bareEnum)
+    }
+
+    func testParsedSymbols() throws {
+        try compareSymbols(swift: """
+        import Foundation
+
+        struct Basic : Equatable {
+            let int: Int? = nil
+            let str: String = "abc"
+            /// a double property
+            let dbl: Double
+
+            let int2 = 1
+            let str2 = "qrs"
+            let dbl2 = 1.1
+
+            let nul = NSNull()
+        }
+        """) { graph in
+            let allSymbols = graph.symbols.values
+
+            // get a consistent ordering (we might prefer by source line number?)
+            let symbolsInOrder = allSymbols.sorted {
+                $0.identifier.precise < $1.identifier.precise
+            }
+
+            XCTAssertEqual(symbolsInOrder.map(\.pathComponents), [
+                ["Basic"],
+                ["Basic", "init(dbl:)"],
+                ["Basic", "dbl"],
+                ["Basic", "int"],
+                ["Basic", "nul"],
+                ["Basic", "str"],
+                ["Basic", "dbl2"],
+                ["Basic", "int2"],
+                ["Basic", "str2"],
+                ["Basic", "!=(_:_:)"],
+            ])
+
+            let dbl = try XCTUnwrap(allSymbols.first(where: { $0.pathComponents == ["Basic", "dbl"] }))
+            XCTAssertEqual(.property, dbl.kind.identifier)
+            XCTAssertEqual(.init(rawValue: "internal"), dbl.accessLevel)
+            XCTAssertEqual(nil, dbl.type) // we'd like "Double" here…
+            XCTAssertEqual("a double property", dbl.docComment?.lines.first?.text)
+
+            let dbl2 = try XCTUnwrap(allSymbols.first(where: { $0.pathComponents == ["Basic", "dbl2"] }))
+            XCTAssertEqual(.property, dbl2.kind.identifier)
+            XCTAssertEqual(.init(rawValue: "internal"), dbl2.accessLevel)
+            XCTAssertEqual(nil, dbl2.type)
+
+            let nul = try XCTUnwrap(allSymbols.first(where: { $0.pathComponents == ["Basic", "nul"] }))
+            XCTAssertEqual(.property, nul.kind.identifier)
+            XCTAssertEqual(.init(rawValue: "internal"), nul.accessLevel)
+            XCTAssertEqual(nil, nul.type)
+//            XCTAssertEqual(nil, nul.)
+
+        }
+    }
+
     func testSimpleTranslation() throws {
         try compare(swift: "1+2", kotlin: "1 + 2")
         try compare(swift: "{ return 1+2 }", kotlin: "{ 1 + 2 }")
         try compare(swift: #""abc"+"def""#, kotlin: #""abc" + "def""#)
         try compare(swift: #"[1,2,3].map({ x in "Number: \(x)" })"#, kotlin: #"listOf(1, 2, 3).map({ x -> "Number: ${x}" })"#)
+
+        try compare(swift: "{ return 1+2 }", kotlin: "{ 1 + 2 }")
 
         try compare(swift: "enum ENM : String { case abc, xyz }", kotlin: """
         internal enum class ENM(val rawValue: String) {
@@ -884,7 +1040,85 @@ final class SkiffTests: XCTestCase {
         }
     }
 
-    func compare(swift: String, kotlin: String, file: StaticString = #file, line: UInt = #line) throws {
+    func compareSymbols(sourceName: String = "source", swift: String, symbols: @autoclosure () throws -> SymbolGraph? = nil, check: ((SymbolGraph) throws -> ())? = nil, file: StaticString = #file, line: UInt = #line) throws {
+        let tmproot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        let tmpdir = URL(fileURLWithPath: UUID().uuidString, isDirectory: true, relativeTo: tmproot)
+        try FileManager.default.createDirectory(at: tmpdir, withIntermediateDirectories: true)
+        let tmpFile = URL(fileURLWithPath: "\(sourceName).swift", isDirectory: false, relativeTo: tmpdir)
+        print("writing to:", tmpFile.path)
+        try swift.write(to: tmpFile, atomically: true, encoding: .utf8)
+
+        // for a full build docc: https://github.com/apple/swift-docc/blob/main/Sources/generate-symbol-graph/main.swift#L157
+        /*
+         swift build --package-path \(packagePath.path) \
+           --scratch-path \(buildDirectory.path) \
+           --target SwiftDocC \
+           -Xswiftc -emit-symbol-graph \
+           -Xswiftc -emit-symbol-graph-dir -Xswiftc \(symbolGraphOutputDirectory.path) \
+           -Xswiftc -symbol-graph-minimum-access-level -Xswiftc internal
+         */
+
+        let process = Process()
+        //process.executableURL = URL(fileURLWithPath: ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/sh", isDirectory: false)
+        //var args: [String] = ["-c"]
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env", isDirectory: false)
+        var args: [String] = []
+
+        args += ["swiftc"]
+        args += [
+            "-emit-symbol-graph",
+            "-emit-module-path", tmpdir.path,
+            "-emit-symbol-graph-dir", tmpdir.path,
+            "-symbol-graph-minimum-access-level", "internal",
+        ]
+
+        args += [
+            tmpFile.path
+        ]
+
+        process.arguments = args
+
+        print("running:", args.joined(separator: " "))
+        process.launch()
+        process.waitUntilExit()
+
+        let exitCode = process.terminationStatus
+        if exitCode != 0 {
+            // TODO: read the standard output and translate some common failures into an error enum
+            struct ChildTaskFailed : Error {
+                let exitCode: Int32
+            }
+
+            throw ChildTaskFailed(exitCode: exitCode)
+        }
+
+
+        // TODO: find the correct output folder
+        let symFile = URL(fileURLWithPath: "\(sourceName).symbols.json", isDirectory: false, relativeTo: tmpdir)
+        let graphData = try Data(contentsOf: symFile)
+        var graph = try JSONDecoder().decode(SymbolGraph.self, from: graphData)
+
+        // first run any graph check block that may have been passed
+        try check?(graph)
+
+        graph.metadata.formatVersion = .init(major: 0, minor: 0, patch: 0)
+        graph.metadata.generator = "skiff"
+        graph.module.platform = .init()
+        var sym2 = try graph.json(outputFormatting: [.prettyPrinted, .withoutEscapingSlashes]).utf8String ?? ""
+        sym2 = sym2.replacingOccurrences(of: tmpdir.absoluteString, with: "") // strip the tmp URLs
+        print("### generated symbols", sym2)
+        if let sym = try symbols() {
+            // SymbolGraph is not equatable, so the best we can do is compare the encoded JSON
+            let sym1 = try sym.json(outputFormatting: [.prettyPrinted, .withoutEscapingSlashes]).utf8String ?? ""
+
+            XCTAssertEqual(sym1, sym2, file: file, line: line)
+        }
+    }
+
+    func compare(swift: String, kotlin: String, symbols: SymbolGraph? = nil, file: StaticString = #file, line: UInt = #line) throws {
+        if let symbols = symbols {
+            try compareSymbols(swift: swift, symbols: symbols, file: file, line: line)
+        }
         XCTAssertEqual(kotlin.trimmed(), try Skiff().translate(swift: swift, moduleName: nil, file: file, line: line).trimmed(), file: file, line: line)
     }
 
@@ -902,6 +1136,10 @@ final class SkiffTests: XCTestCase {
 }
 
 
+
+extension SymbolGraph {
+    static let standard: SymbolGraph = SymbolGraph(metadata: SymbolGraph.Metadata(formatVersion: SymbolGraph.SemanticVersion(major: 0, minor: 0, patch: 0, prerelease: nil, buildMetadata: nil), generator: "skiff"), module: SymbolGraph.Module(name: "source", platform: .init(architecture: nil, vendor: nil, operatingSystem: nil, environment: nil), version: nil, bystanders: nil, isVirtual: false), symbols: [], relationships: [])
+}
 
 // MARK: FileSystemModuleBlock
 

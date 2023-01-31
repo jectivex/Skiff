@@ -48,7 +48,7 @@ extension String {
 import GryphonLib
 
 extension Skiff {
-    public func transpileInline(token: String = "} verify: {", options: TranslationOptions, preamble: Range<Int>?, file: StaticString = #file, line: UInt = #line) throws -> String {
+    public func transpileInline(token: String = "} verify: {", options: TranslationOptions, preamble: Range<Int>?, file: StaticString = #file, line: UInt = #line) throws -> (swift: String, kotlin: String) {
         let code = try String(contentsOf: URL(fileURLWithPath: file.description))
         let lines = code.split(separator: "\n", omittingEmptySubsequences: false).map({ String($0) })
         let initial = Array(lines[.init(line)...])
@@ -78,7 +78,7 @@ extension Skiff {
         let swift = parts.joined(separator: "\n")
 
         let kotlin = try translate(swift: swift, moduleName: nil, options: options) // + (hasReturn ? "()" : "")
-        return kotlin
+        return (swift, kotlin)
     }
 
     /// Takes code with `#if KOTLIN … #else … #endif` or `#if os(Android) … #else … #endif` and returns just the Kotlin code.
@@ -294,8 +294,9 @@ extension Skiff {
     /// Forks a gradle process for the given projects. Assumes that `gradle` is somewhere in the PATH.
     public func gradle(project projectPath: String, actions: [String]) throws {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env", isDirectory: false)
-        var args: [String] = []
+        process.executableURL = URL(fileURLWithPath: ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/sh", isDirectory: false)
+        var args: [String] = ["-c"]
+
         args += [
             "ANDROID_HOME=" + (("~/Library/Android/sdk" as NSString).expandingTildeInPath), // otherwise: “SDK location not found. Define a valid SDK location with an ANDROID_HOME environment variable or by setting the sdk.dir path in your project's local properties file”
             "GRADLE_OPTS=-Xmx512m", // otherwise: “To honour the JVM settings for this build a single-use Daemon process will be forked.”
