@@ -89,6 +89,8 @@ final class SkiffTests: XCTestCase {
         """) { graph in
             let allSymbols = graph.symbols.values
 
+            dump(graph.relationships, name: "relationships")
+
             // get a consistent ordering (we might prefer by source line number?)
             let symbolsInOrder = allSymbols.sorted {
                 $0.identifier.precise < $1.identifier.precise
@@ -129,8 +131,14 @@ final class SkiffTests: XCTestCase {
             let declarationFragments = try XCTUnwrap(basic.mixins["declarationFragments"] as? SymbolKit.SymbolGraph.Symbol.DeclarationFragments)
             XCTAssertEqual("Basic", declarationFragments.declarationFragments.last?.spelling)
 
-            dump(basic, name: "basic")
+            // Basic conforms to Equatable
+            XCTAssertNotNil(graph.relationships.first(where: { $0.source == "s:6source5BasicV" && $0.kind == .conformsTo && $0.target == "s:SQ" && $0.targetFallback == "Swift.Equatable" }))
 
+            // Basic.NestedStruct conforms to Equatable and Hashable
+            XCTAssertNotNil(graph.relationships.first(where: { $0.source == "s:6source5BasicV12NestedStructV" && $0.kind == .conformsTo && $0.target == "s:SQ" && $0.targetFallback == "Swift.Equatable" }))
+            XCTAssertNotNil(graph.relationships.first(where: { $0.source == "s:6source5BasicV12NestedStructV" && $0.kind == .conformsTo && $0.target == "s:SH" && $0.targetFallback == "Swift.Hashable" }))
+
+            dump(basic, name: "basic")
 
             let symFromName = { name in try XCTUnwrap(allSymbols.first(where: { $0.pathComponents == ["Basic", name] })) }
 
