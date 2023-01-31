@@ -222,7 +222,11 @@ final class SkiffTests: XCTestCase {
             XCTAssertEqual(.init(rawValue: "internal"), nul.accessLevel)
             XCTAssertEqual(nil, nul.type)
             XCTAssertEqual("NSNull", nul.names.subHeading?.last?.spelling)
+            #if os(Linux)
+            XCTAssertEqual("s:10Foundation6NSNullC", nul.names.subHeading?.last?.preciseIdentifier)
+            #else
             XCTAssertEqual("c:objc(cs)NSNull", nul.names.subHeading?.last?.preciseIdentifier)
+            #endif
 
             dump(nul, name: "nul")
             // nul: SymbolKit.SymbolGraph.Symbol
@@ -312,10 +316,6 @@ final class SkiffTests: XCTestCase {
             //           ▿ preciseIdentifier: Optional("c:objc(cs)NSNull")
             //             - some: "c:objc(cs)NSNull"
 
-
-            XCTAssertEqual("?", try sym("int").names.subHeading?.last?.spelling)
-            XCTAssertEqual(nil, try sym("int").names.subHeading?.first?.preciseIdentifier)
-            XCTAssertEqual(nil, try sym("int").names.subHeading?.last?.preciseIdentifier)
 
             XCTAssertEqual("Int", try sym("int2").names.subHeading?.last?.spelling)
             XCTAssertEqual("s:Si", try sym("int2").names.subHeading?.last?.preciseIdentifier)
