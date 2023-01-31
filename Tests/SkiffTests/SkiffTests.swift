@@ -100,23 +100,231 @@ final class SkiffTests: XCTestCase {
                 ["Basic", "!=(_:_:)"],
             ])
 
-            let dbl = try XCTUnwrap(allSymbols.first(where: { $0.pathComponents == ["Basic", "dbl"] }))
+            let sym = { name in try XCTUnwrap(allSymbols.first(where: { $0.pathComponents == ["Basic", name] })) }
+
+            let dbl = try sym("dbl")
             XCTAssertEqual(.property, dbl.kind.identifier)
             XCTAssertEqual(.init(rawValue: "internal"), dbl.accessLevel)
             XCTAssertEqual(nil, dbl.type) // we'd like "Double" here…
+            XCTAssertEqual("Double", dbl.names.subHeading?.last?.spelling)
             XCTAssertEqual("a double property", dbl.docComment?.lines.first?.text)
+            dump(dbl, name: "dbl")
 
-            let dbl2 = try XCTUnwrap(allSymbols.first(where: { $0.pathComponents == ["Basic", "dbl2"] }))
+            let int = try sym("int")
+            XCTAssertEqual(.property, int.kind.identifier)
+            XCTAssertEqual(.init(rawValue: "internal"), int.accessLevel)
+            XCTAssertEqual(nil, int.type)
+            XCTAssertEqual("?", int.names.subHeading?.last?.spelling)
+            XCTAssertEqual(nil, int.names.subHeading?.last?.preciseIdentifier)
+            XCTAssertEqual("Int", int.names.subHeading?.dropLast(1).last?.spelling)
+            XCTAssertEqual("s:Si", int.names.subHeading?.dropLast(1).last?.preciseIdentifier)
+
+            dump(int, name: "int")
+
+            let dbl2 = try sym("dbl2")
             XCTAssertEqual(.property, dbl2.kind.identifier)
             XCTAssertEqual(.init(rawValue: "internal"), dbl2.accessLevel)
             XCTAssertEqual(nil, dbl2.type)
+            XCTAssertEqual("Double", dbl2.names.subHeading?.last?.spelling)
+            XCTAssertEqual("s:Sd", dbl2.names.subHeading?.last?.preciseIdentifier)
 
-            let nul = try XCTUnwrap(allSymbols.first(where: { $0.pathComponents == ["Basic", "nul"] }))
+            dump(dbl2, name: "dbl2")
+            // ▿ dbl2: SymbolKit.SymbolGraph.Symbol
+            //   ▿ identifier: SymbolKit.SymbolGraph.Symbol.Identifier
+            //     - precise: "s:6source5BasicV4dbl2Sdvp"
+            //     - interfaceLanguage: "swift"
+            //   ▿ kind: SymbolKit.SymbolGraph.Symbol.Kind
+            //     ▿ identifier: SymbolKit.SymbolGraph.Symbol.KindIdentifier
+            //       - rawValue: "property"
+            //     - displayName: "Instance Property"
+            //   ▿ pathComponents: 2 elements
+            //     - "Basic"
+            //     - "dbl2"
+            //   - type: nil
+            //   ▿ names: SymbolKit.SymbolGraph.Symbol.Names
+            //     - title: "dbl2"
+            //     - navigator: nil
+            //     ▿ subHeading: Optional([SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment(kind: // SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind(rawValue: "keyword"), spelling: "let", preciseIdentifier: nil), // SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment(kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind(rawValue: "text"), // spelling: " ", preciseIdentifier: nil), SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment(kind: // SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind(rawValue: "identifier"), spelling: "dbl2", preciseIdentifier: nil), // SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment(kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind(rawValue: "text"), // spelling: ": ", preciseIdentifier: nil), SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment(kind: // SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind(rawValue: "typeIdentifier"), spelling: "Double", preciseIdentifier: // Optional("s:Sd"))])
+            //       ▿ some: 5 elements
+            //         ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //           ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //             - rawValue: "keyword"
+            //           - spelling: "let"
+            //           - preciseIdentifier: nil
+            //         ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //           ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //             - rawValue: "text"
+            //           - spelling: " "
+            //           - preciseIdentifier: nil
+            //         ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //           ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //             - rawValue: "identifier"
+            //           - spelling: "dbl2"
+            //           - preciseIdentifier: nil
+            //         ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //           ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //             - rawValue: "text"
+            //           - spelling: ": "
+            //           - preciseIdentifier: nil
+            //         ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //           ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //             - rawValue: "typeIdentifier"
+            //           - spelling: "Double"
+            //           ▿ preciseIdentifier: Optional("s:Sd")
+            //             - some: "s:Sd"
+            //     - prose: nil
+            //   - docComment: nil
+            //   - isVirtual: false
+            //   ▿ accessLevel: SymbolKit.SymbolGraph.Symbol.AccessControl
+            //     - rawValue: "internal"
+            //   ▿ mixins: 2 key/value pairs
+            //     ▿ (2 elements)
+            //       - key: "location"
+            //       ▿ value: SymbolKit.SymbolGraph.Symbol.Location
+            //         - uri: "file:///var/folders/zl/wkdjv4s1271fbm6w0plzknkh0000gn/T/C0138B09-BA98-4383-98A0-E47AB4228617/source.swift"
+            //         ▿ position: SymbolKit.SymbolGraph.LineList.SourceRange.Position
+            //           - line: 10
+            //           - character: 8
+            //     ▿ (2 elements)
+            //       - key: "declarationFragments"
+            //       ▿ value: SymbolKit.SymbolGraph.Symbol.DeclarationFragments
+            //         ▿ declarationFragments: 5 elements
+            //           ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //             ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //               - rawValue: "keyword"
+            //             - spelling: "let"
+            //             - preciseIdentifier: nil
+            //           ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //             ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //               - rawValue: "text"
+            //             - spelling: " "
+            //             - preciseIdentifier: nil
+            //           ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //             ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //               - rawValue: "identifier"
+            //             - spelling: "dbl2"
+            //             - preciseIdentifier: nil
+            //           ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //             ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //               - rawValue: "text"
+            //             - spelling: ": "
+            //             - preciseIdentifier: nil
+            //           ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //             ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //               - rawValue: "typeIdentifier"
+            //             - spelling: "Double"
+            //             ▿ preciseIdentifier: Optional("s:Sd")
+            //               - some: "s:Sd"
+
+
+            let nul = try sym("nul")
             XCTAssertEqual(.property, nul.kind.identifier)
             XCTAssertEqual(.init(rawValue: "internal"), nul.accessLevel)
             XCTAssertEqual(nil, nul.type)
-//            XCTAssertEqual(nil, nul.)
+            XCTAssertEqual("NSNull", nul.names.subHeading?.last?.spelling)
+            XCTAssertEqual("c:objc(cs)NSNull", nul.names.subHeading?.last?.preciseIdentifier)
 
+            dump(nul, name: "nul")
+            // nul: SymbolKit.SymbolGraph.Symbol
+            // ▿ identifier: SymbolKit.SymbolGraph.Symbol.Identifier
+            //   - precise: "s:6source5BasicV3nulSo6NSNullCvp"
+            //   - interfaceLanguage: "swift"
+            // ▿ kind: SymbolKit.SymbolGraph.Symbol.Kind
+            //   ▿ identifier: SymbolKit.SymbolGraph.Symbol.KindIdentifier
+            //     - rawValue: "property"
+            //   - displayName: "Instance Property"
+            // ▿ pathComponents: 2 elements
+            //   - "Basic"
+            //   - "nul"
+            // - type: nil
+            // ▿ names: SymbolKit.SymbolGraph.Symbol.Names
+            //   - title: "nul"
+            //   - navigator: nil
+            //   ▿ subHeading: Optional([SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment(kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind(rawValue: "keyword"), spelling: "let", preciseIdentifier: nil), SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment(kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind(rawValue: "text"), spelling: " ", preciseIdentifier: nil), SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment(kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind(rawValue: "identifier"), spelling: "nul", preciseIdentifier: nil), SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment(kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind(rawValue: "text"), spelling: ": ", preciseIdentifier: nil), SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment(kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind(rawValue: "typeIdentifier"), spelling: "NSNull", preciseIdentifier: Optional("c:objc(cs)NSNull"))])
+            //     ▿ some: 5 elements
+            //       ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //         ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //           - rawValue: "keyword"
+            //         - spelling: "let"
+            //         - preciseIdentifier: nil
+            //       ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //         ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //           - rawValue: "text"
+            //         - spelling: " "
+            //         - preciseIdentifier: nil
+            //       ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //         ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //           - rawValue: "identifier"
+            //         - spelling: "nul"
+            //         - preciseIdentifier: nil
+            //       ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //         ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //           - rawValue: "text"
+            //         - spelling: ": "
+            //         - preciseIdentifier: nil
+            //       ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //         ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //           - rawValue: "typeIdentifier"
+            //         - spelling: "NSNull"
+            //         ▿ preciseIdentifier: Optional("c:objc(cs)NSNull")
+            //           - some: "c:objc(cs)NSNull"
+            //   - prose: nil
+            // - docComment: nil
+            // - isVirtual: false
+            // ▿ accessLevel: SymbolKit.SymbolGraph.Symbol.AccessControl
+            //   - rawValue: "internal"
+            // ▿ mixins: 2 key/value pairs
+            //   ▿ (2 elements)
+            //     - key: "location"
+            //     ▿ value: SymbolKit.SymbolGraph.Symbol.Location
+            //       - uri: "file:///var/folders/zl/wkdjv4s1271fbm6w0plzknkh0000gn/T/C0138B09-BA98-4383-98A0-E47AB4228617/source.swift"
+            //       ▿ position: SymbolKit.SymbolGraph.LineList.SourceRange.Position
+            //         - line: 12
+            //         - character: 8
+            //   ▿ (2 elements)
+            //     - key: "declarationFragments"
+            //     ▿ value: SymbolKit.SymbolGraph.Symbol.DeclarationFragments
+            //       ▿ declarationFragments: 5 elements
+            //         ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //           ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //             - rawValue: "keyword"
+            //           - spelling: "let"
+            //           - preciseIdentifier: nil
+            //         ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //           ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //             - rawValue: "text"
+            //           - spelling: " "
+            //           - preciseIdentifier: nil
+            //         ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //           ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //             - rawValue: "identifier"
+            //           - spelling: "nul"
+            //           - preciseIdentifier: nil
+            //         ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //           ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //             - rawValue: "text"
+            //           - spelling: ": "
+            //           - preciseIdentifier: nil
+            //         ▿ SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment
+            //           ▿ kind: SymbolKit.SymbolGraph.Symbol.DeclarationFragments.Fragment.Kind
+            //             - rawValue: "typeIdentifier"
+            //           - spelling: "NSNull"
+            //           ▿ preciseIdentifier: Optional("c:objc(cs)NSNull")
+            //             - some: "c:objc(cs)NSNull"
+
+
+            XCTAssertEqual("?", try sym("int").names.subHeading?.last?.spelling)
+            XCTAssertEqual(nil, try sym("int").names.subHeading?.first?.preciseIdentifier)
+            XCTAssertEqual(nil, try sym("int").names.subHeading?.last?.preciseIdentifier)
+
+            XCTAssertEqual("Int", try sym("int2").names.subHeading?.last?.spelling)
+            XCTAssertEqual("s:Si", try sym("int2").names.subHeading?.last?.preciseIdentifier)
+
+            XCTAssertEqual("String", try sym("str").names.subHeading?.last?.spelling)
+            XCTAssertEqual("s:SS", try sym("str").names.subHeading?.last?.preciseIdentifier)
+
+            XCTAssertEqual("String", try sym("str2").names.subHeading?.last?.spelling)
+            XCTAssertEqual("s:SS", try sym("str2").names.subHeading?.last?.preciseIdentifier)
         }
     }
 
