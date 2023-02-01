@@ -455,7 +455,7 @@ final class SkiffTests: XCTestCase {
             "listOf(1, 5, 9).fold(0, { x, y -> x + y })"
         }
 
-        // demonstration that Gryphone mis-translates anonymous closure parameters beyond $0
+        // demonstration that Gryphon mis-translates anonymous closure parameters beyond $0
         try await check(swift: 15) { _ in
             [1, 5, 9].reduce(0, { $0 + $1 })
         } verify: {
